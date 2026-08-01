@@ -514,7 +514,6 @@
             <div class="form-grid">
               <div class="field"><label id="lbl_es">Efectivo sistema <span class="req">*</span></label><input type="number" id="ci_efectivoSistema" step="0.01" required></div>
               <div class="field locked"><label id="lbl_ec">Efectivo contado (automatico)</label><input type="number" id="ci_efectivoContado" step="0.01" readonly></div>
-              <div class="field"><label id="lbl_evc">Evidencia de conteo</label><input type="file" id="ci_evidenciaConteo" accept="image/*" multiple></div>
             </div>
             <div class="form-grid">
               <div class="field"><label id="lbl_ts">Transferencias sistema <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
@@ -545,10 +544,15 @@
               <div class="field locked"><label id="lbl_tjc">Tarjetas contadas (automatico)</label><input type="number" id="ci_tarjetasContadas" step="0.01" readonly></div>
               <div class="field"><label id="lbl_cdf">Comprobante de cierre de datafono</label><input type="file" id="ci_comprobanteDatafono" accept="image/*" multiple></div>
             </div>
+            <div class="datafono-check-row" id="ci_datafonosGrupo">
+              <label class="datafono-check"><input type="checkbox" id="ci_datafonoP1_activo"> Usar Datafono 1 Principal</label>
+              <label class="datafono-check"><input type="checkbox" id="ci_datafonoP2_activo"> Usar Datafono 2 Principal</label>
+              <label class="datafono-check"><input type="checkbox" id="ci_datafonoAlterno_activo"> Usar Datafono 3 Alterno</label>
+            </div>
             <div class="form-grid">
-              <div class="field"><label id="lbl_dp1">Datafono Principal 1</label><input type="number" id="ci_datafonoP1" step="0.01"></div>
-              <div class="field"><label id="lbl_dp2">Datafono Principal 2</label><input type="number" id="ci_datafonoP2" step="0.01"></div>
-              <div class="field"><label id="lbl_da">Datafono Alterno</label><input type="number" id="ci_datafonoAlterno" step="0.01"></div>
+              <div class="field"><label id="lbl_dp1">Datafono 1 Principal</label><input type="number" id="ci_datafonoP1" step="0.01" disabled></div>
+              <div class="field"><label id="lbl_dp2">Datafono 2 Principal</label><input type="number" id="ci_datafonoP2" step="0.01" disabled></div>
+              <div class="field"><label id="lbl_da">Datafono 3 Alterno</label><input type="number" id="ci_datafonoAlterno" step="0.01" disabled></div>
             </div>
             <small class="muted" id="ci_datafonoAutoNote" style="display:none"></small>
 
@@ -623,7 +627,7 @@
         </div>
       </form>
 
-      <div class="gerente-only">
+      <div class="caja-gerente-only">
         <div class="toolbar">
           <h3 style="margin:0;color:var(--espresso);font-size:16px;">Historial de cierres (todos los dias)</h3>
           <div class="top-actions no-print">
@@ -933,13 +937,13 @@ document.getElementById("head_trend").innerHTML = icon("trend",17) + "Tendencia 
 document.getElementById("head_rank").innerHTML = icon("users",17) + "Responsables con mas descuadres";
 document.getElementById("head_cumpl").innerHTML = icon("checkc",17) + "Cumplimiento operativo";
 document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control de bolsas de seguridad";
-[["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],["lbl_evc","image","Evidencia de conteo"],
+[["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],
  ["lbl_ts","swap","Transferencias sistema *"],["lbl_tc","swap","Transferencias contadas *"],["lbl_ctr","image","Comprobantes de transferencias"],
  ["lbl_ftr","invoice","Total facturado electronicamente (transferencias) *"],
  ["lbl_btr","swap","Total recibido en cuenta principal (reporte banco) *"],
  ["lbl_vtr","checkc","&iquest;Coincide facturacion con transferencias a cuenta principal? *"],
  ["lbl_tjs","card","Tarjetas sistema *"],["lbl_tjc","lock","Tarjetas contadas (automatico)"],["lbl_cdf","image","Comprobante de cierre de datafono"],
- ["lbl_dp1","card","Datafono Principal 1"],["lbl_dp2","card","Datafono Principal 2"],["lbl_da","card","Datafono Alterno"],
+ ["lbl_dp1","card","Datafono 1 Principal"],["lbl_dp2","card","Datafono 2 Principal"],["lbl_da","card","Datafono 3 Alterno"],
  ["lbl_tdp1","card","Total Datafono Principal 1 (reporte banco) *"],
  ["lbl_tfd1","invoice","Total facturado electronicamente P1 *"],
  ["lbl_vd1","checkc","&iquest;Coincide facturacion con Datafono Principal 1? *"],
@@ -1035,6 +1039,7 @@ function applyRoleUI() {
     item.style.display = item.classList.contains("role-" + currentRole) ? "flex" : "none";
   });
   document.querySelectorAll(".gerente-only").forEach(el => el.style.display = isGerente ? "block" : "none");
+  document.querySelectorAll(".caja-gerente-only").forEach(el => el.style.display = (isGerente || currentRole === "caja") ? "block" : "none");
   document.querySelectorAll(".not-mesero").forEach(el => el.style.display = currentRole === "mesero" ? "none" : "block");
   const labels = { gerente: "Gerente", caja: "Caja", mesero: "Mesero" };
   const initials = { gerente: "GR", caja: "CJ", mesero: "ME" };
@@ -1321,10 +1326,13 @@ function resetDenominaciones() {
   recomputeDenominaciones();
 }
 
-/* ============================= DATAFONOS (PRINCIPAL 1, PRINCIPAL 2, ALTERNO) Y VERIFICACIONES ============================= */
+/* ============================= DATAFONOS (1 PRINCIPAL, 2 PRINCIPAL, 3 ALTERNO) Y VERIFICACIONES ============================= */
 const ciDatafonoP1 = document.getElementById("ci_datafonoP1");
 const ciDatafonoP2 = document.getElementById("ci_datafonoP2");
 const ciDatafonoAlterno = document.getElementById("ci_datafonoAlterno");
+const ciDatafonoP1Check = document.getElementById("ci_datafonoP1_activo");
+const ciDatafonoP2Check = document.getElementById("ci_datafonoP2_activo");
+const ciDatafonoAltCheck = document.getElementById("ci_datafonoAlterno_activo");
 const ciTarjetasContadas = document.getElementById("ci_tarjetasContadas");
 const verifP1Block = document.getElementById("ci_verifP1Block");
 const verifP1Fields = ["ci_bancoP1", "ci_facturadoP1", "ci_verifP1"];
@@ -1337,8 +1345,14 @@ function recomputeTarjetasContadas() {
   renderLiveDiff();
   renderStatCards();
 }
-function toggleVerifBlock(inputEl, block, fields) {
-  const activo = Number(inputEl.value || 0) > 0;
+/* El cajero marca la casilla de cada datafono que uso hoy; solo entonces se habilita
+   el campo de monto. Si la desmarca, el campo se limpia y se bloquea de nuevo. */
+function toggleDatafonoField(checkboxEl, inputEl) {
+  inputEl.disabled = !checkboxEl.checked;
+  if (!checkboxEl.checked) inputEl.value = "";
+}
+function toggleVerifBlock(checkboxEl, block, fields) {
+  const activo = checkboxEl.checked;
   block.style.display = activo ? "block" : "none";
   fields.forEach(id => document.getElementById(id).required = activo);
   if (!activo) fields.forEach(id => document.getElementById(id).value = "");
@@ -1371,33 +1385,45 @@ function renderDiffTransferencias() {
       <div class="value ${diff === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(diff)}</div></div>`;
 }
 
-ciDatafonoP1.addEventListener("input", () => {
+ciDatafonoP1Check.addEventListener("change", () => {
+  toggleDatafonoField(ciDatafonoP1Check, ciDatafonoP1);
+  toggleVerifBlock(ciDatafonoP1Check, verifP1Block, verifP1Fields);
   recomputeTarjetasContadas();
-  toggleVerifBlock(ciDatafonoP1, verifP1Block, verifP1Fields);
   renderDiffP1();
 });
-ciDatafonoP2.addEventListener("input", () => {
+ciDatafonoP2Check.addEventListener("change", () => {
+  toggleDatafonoField(ciDatafonoP2Check, ciDatafonoP2);
+  toggleVerifBlock(ciDatafonoP2Check, verifP2Block, verifP2Fields);
   recomputeTarjetasContadas();
-  toggleVerifBlock(ciDatafonoP2, verifP2Block, verifP2Fields);
   renderDiffP2();
 });
+ciDatafonoAltCheck.addEventListener("change", () => {
+  toggleDatafonoField(ciDatafonoAltCheck, ciDatafonoAlterno);
+  recomputeTarjetasContadas();
+});
+ciDatafonoP1.addEventListener("input", recomputeTarjetasContadas);
+ciDatafonoP2.addEventListener("input", recomputeTarjetasContadas);
 ciDatafonoAlterno.addEventListener("input", recomputeTarjetasContadas);
 ["ci_bancoP1","ci_facturadoP1"].forEach(id => document.getElementById(id).addEventListener("input", renderDiffP1));
 ["ci_bancoP2","ci_facturadoP2"].forEach(id => document.getElementById(id).addEventListener("input", renderDiffP2));
 ["ci_facturadoTransferencias","ci_bancoTransferencias"].forEach(id =>
   document.getElementById(id).addEventListener("input", renderDiffTransferencias));
 
-/* Nota informativa: si el alistamiento de hoy marco algun datafono Principal en uso */
+/* Autorrelleno: si el alistamiento de hoy marco algun datafono en uso, marcamos las mismas
+   casillas en el Cierre (solo la primera vez, si el cajero no ha tocado nada todavia). */
 function autoFillDatafonoCierre() {
   const nota = document.getElementById("ci_datafonoAutoNote");
   if (!nota) return;
   const hoy = todayStr();
   const al = alistamientosCache.find(r => (r.fecha || dateKeyFromTs(r.creadoEn)) === hoy);
   const datafonosHoy = (al && Array.isArray(al.datafonos)) ? al.datafonos : [];
-  const usaPrincipal = datafonosHoy.includes("Principal 1") || datafonosHoy.includes("Principal 2");
-  if (usaPrincipal) {
+  const yaMarcoAlguno = ciDatafonoP1Check.checked || ciDatafonoP2Check.checked || ciDatafonoAltCheck.checked;
+  if (datafonosHoy.length && !yaMarcoAlguno) {
+    if (datafonosHoy.includes("Principal 1")) { ciDatafonoP1Check.checked = true; ciDatafonoP1Check.dispatchEvent(new Event("change")); }
+    if (datafonosHoy.includes("Principal 2")) { ciDatafonoP2Check.checked = true; ciDatafonoP2Check.dispatchEvent(new Event("change")); }
+    if (datafonosHoy.includes("Alterno")) { ciDatafonoAltCheck.checked = true; ciDatafonoAltCheck.dispatchEvent(new Event("change")); }
     nota.style.display = "block";
-    nota.innerHTML = icon("checkc", 12) + " Segun el alistamiento de hoy hay datafono(s) Principal en uso (" + datafonosHoy.filter(d => d !== "Alterno").join(", ") + "). No olvides diligenciar su monto y la verificacion de facturacion electronica.";
+    nota.innerHTML = icon("checkc", 12) + " Se marcaron los datafonos segun el alistamiento de hoy (" + datafonosHoy.join(", ") + "). Puedes ajustarlo si algo cambio durante el turno.";
   } else {
     nota.style.display = "none";
   }
@@ -1406,17 +1432,22 @@ function autoFillDatafonoCierre() {
 /* ============================= DIFERENCIAS + STAT CARDS EN VIVO ============================= */
 function computeDiffs() {
   const num = id => Number(document.getElementById(id).value || 0);
+  /* Los gastos de caja salen en efectivo del cajon durante el turno, asi que se descuentan
+     del efectivo del sistema antes de comparar contra lo fisicamente contado. */
+  const efectivoEsperado = num("ci_efectivoSistema") - num("ci_gastosCaja");
   return {
-    dEfectivo: num("ci_efectivoContado") - num("ci_efectivoSistema"),
+    dEfectivo: num("ci_efectivoContado") - efectivoEsperado,
     dTransf: num("ci_transfContadas") - num("ci_transfSistema"),
     dTarjetas: num("ci_tarjetasContadas") - num("ci_tarjetasSistema"),
+    efectivoEsperado,
   };
 }
 function renderLiveDiff() {
-  const { dEfectivo, dTransf, dTarjetas } = computeDiffs();
+  const { dEfectivo, dTransf, dTarjetas, efectivoEsperado } = computeDiffs();
   const card = (label, val) => `<div class="total-card"><div class="label">${label}</div>
     <div class="value ${val === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(val)}</div></div>`;
   document.getElementById("ci_liveDiff").innerHTML =
+    `<div class="total-card"><div class="label">Efectivo esperado (sistema - gastos)</div><div class="value">${fmtMoney(efectivoEsperado)}</div></div>` +
     card("Diferencia efectivo", dEfectivo) + card("Diferencia transferencias", dTransf) + card("Diferencia tarjetas", dTarjetas);
 }
 
@@ -1474,7 +1505,7 @@ function renderStatCards() {
     stat("card", "bg-wood", "Tarjetas / Datafono", fmtMoney(num("ci_tarjetasContadas")), "Datafono: " + df) +
     stat("scale", total===0?"bg-green":"bg-red", "Diferencia total", fmtMoney(total), total===0?"Cuadrado":"Por conciliar");
 }
-["ci_efectivoSistema","ci_transfSistema","ci_transfContadas","ci_tarjetasSistema","ci_tarjetasContadas"]
+["ci_efectivoSistema","ci_gastosCaja","ci_transfSistema","ci_transfContadas","ci_tarjetasSistema","ci_tarjetasContadas"]
   .forEach(id => document.getElementById(id).addEventListener("input", () => { renderLiveDiff(); renderStatCards(); }));
 recomputeDenominaciones();
 renderStatCards();
@@ -1486,15 +1517,16 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
   const statusEl = document.getElementById("ci_status");
   try {
     statusEl.textContent = "Guardando...";
-    const { dEfectivo, dTransf, dTarjetas } = computeDiffs();
-    const p1Activo = Number(document.getElementById("ci_datafonoP1").value || 0) > 0;
-    const p2Activo = Number(document.getElementById("ci_datafonoP2").value || 0) > 0;
+    const { dEfectivo, dTransf, dTarjetas, efectivoEsperado } = computeDiffs();
+    const p1Activo = ciDatafonoP1Check.checked;
+    const p2Activo = ciDatafonoP2Check.checked;
     const data = {
       responsable: document.getElementById("ci_responsable").value.trim(),
       fecha: document.getElementById("ci_fecha").value,
       denominaciones: getDenominacionesData(),
       efectivoSistema: Number(document.getElementById("ci_efectivoSistema").value),
       efectivoContado: Number(document.getElementById("ci_efectivoContado").value),
+      efectivoEsperado: efectivoEsperado,
       diferenciaEfectivo: dEfectivo,
       transferenciasSistema: Number(document.getElementById("ci_transfSistema").value),
       transferenciasContadas: Number(document.getElementById("ci_transfContadas").value),
@@ -1523,7 +1555,6 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       bolsaRecibidaEn: null,
       bolsaRecibidaPor: null,
       observaciones: document.getElementById("ci_observaciones").value.trim(),
-      evidenciaConteo: await filesToBase64(document.getElementById("ci_evidenciaConteo")),
       comprobantesTransferencias: await filesToBase64(document.getElementById("ci_comprobantesTransferencias")),
       comprobanteDatafono: await filesToBase64(document.getElementById("ci_comprobanteDatafono")),
       comprobantesGastos: await filesToBase64(document.getElementById("ci_comprobantesGastos")),
@@ -1535,10 +1566,14 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
     statusEl.textContent = "";
     e.target.reset();
     resetDenominaciones();
+    ciDatafonoP1.disabled = true;
+    ciDatafonoP2.disabled = true;
+    ciDatafonoAlterno.disabled = true;
     verifP1Block.style.display = "none";
     verifP2Block.style.display = "none";
     document.getElementById("ci_datafonoAutoNote").style.display = "none";
     document.getElementById("ci_fecha").value = todayStr();
+    ciTarjetasContadas.value = "";
     renderLiveDiff();
     renderDiffP1();
     renderDiffP2();
@@ -1788,6 +1823,7 @@ function openCierreDetail(r) {
     <div class="detail-grid">
       ${detailRow("Datafonos con movimiento", datafonosPillList(cierreDatafonosActivos(r)))}
       ${detailRow("Efectivo sistema / contado", fmtMoney(r.efectivoSistema) + " / " + fmtMoney(r.efectivoContado))}
+      ${detailRow("Efectivo esperado (sistema - gastos)", r.efectivoEsperado != null ? fmtMoney(r.efectivoEsperado) : "N/A")}
       ${detailRow("Diferencia efectivo", fmtMoney(r.diferenciaEfectivo))}
       ${detailRow("Transferencias sistema / contadas", fmtMoney(r.transferenciasSistema) + " / " + fmtMoney(r.transferenciasContadas))}
       ${detailRow("Diferencia transferencias", fmtMoney(r.diferenciaTransferencias))}
@@ -1795,19 +1831,18 @@ function openCierreDetail(r) {
       ${detailRow("Verif. facturacion vs. transferencias", verifDianPill(r.verifTransferencias))}
       ${detailRow("Tarjetas sistema / contadas", fmtMoney(r.tarjetasSistema) + " / " + fmtMoney(r.tarjetasContadas))}
       ${detailRow("Diferencia tarjetas", fmtMoney(r.diferenciaTarjetas))}
-      ${detailRow("Datafono Principal 1 (monto)", r.datafonoP1 != null ? fmtMoney(r.datafonoP1) : "N/A")}
+      ${detailRow("Datafono 1 Principal (monto)", r.datafonoP1 != null ? fmtMoney(r.datafonoP1) : "N/A")}
       ${detailRow("Total banco / facturado P1", r.bancoP1 != null ? (fmtMoney(r.bancoP1) + " / " + fmtMoney(r.facturadoP1)) : "N/A")}
       ${detailRow("Verif. facturacion Principal 1", verifDianPill(r.verifP1))}
-      ${detailRow("Datafono Principal 2 (monto)", r.datafonoP2 != null ? fmtMoney(r.datafonoP2) : "N/A")}
+      ${detailRow("Datafono 2 Principal (monto)", r.datafonoP2 != null ? fmtMoney(r.datafonoP2) : "N/A")}
       ${detailRow("Total banco / facturado P2", r.bancoP2 != null ? (fmtMoney(r.bancoP2) + " / " + fmtMoney(r.facturadoP2)) : "N/A")}
       ${detailRow("Verif. facturacion Principal 2", verifDianPill(r.verifP2))}
-      ${detailRow("Datafono Alterno (monto)", r.datafonoAlterno != null ? fmtMoney(r.datafonoAlterno) : "N/A")}
+      ${detailRow("Datafono 3 Alterno (monto)", r.datafonoAlterno != null ? fmtMoney(r.datafonoAlterno) : "N/A")}
       ${detailRow("Gastos de caja", fmtMoney(r.gastosCaja))}
       ${detailRow("Bolsa de seguridad", fmtMoney(r.bolsaSeguridad))}
     </div>
     ${denomRows ? `<div class="table-wrap" style="max-height:200px"><table><thead><tr><th>Denominacion</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>${denomRows}</tbody></table></div>` : ""}
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
-    ${thumbRow("Evidencia de conteo", r.evidenciaConteo)}
     ${thumbRow("Comprobantes de transferencias", r.comprobantesTransferencias)}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
     ${thumbRow("Comprobantes de gastos", r.comprobantesGastos)}
