@@ -518,24 +518,6 @@
             <div class="form-grid">
               <div class="field"><label id="lbl_ts">Transferencias sistema <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
               <div class="field"><label id="lbl_tc">Transferencias contadas <span class="req">*</span></label><input type="number" id="ci_transfContadas" step="0.01" required></div>
-              <div class="field"><label id="lbl_ctr">Comprobantes de transferencias</label><input type="file" id="ci_comprobantesTransferencias" accept="image/*" multiple></div>
-            </div>
-
-            <div id="ci_verifTransfBlock">
-              <p class="muted" id="transfNote"></p>
-              <div class="form-grid">
-                <div class="field"><label id="lbl_ftr">Total facturado electronicamente (transferencias) <span class="req">*</span></label><input type="number" id="ci_facturadoTransferencias" step="0.01" required></div>
-                <div class="field"><label id="lbl_btr">Total recibido en cuenta principal (reporte banco) <span class="req">*</span></label><input type="number" id="ci_bancoTransferencias" step="0.01" required></div>
-                <div class="field">
-                  <label id="lbl_vtr">&iquest;Coincide facturacion con transferencias a cuenta principal? <span class="req">*</span></label>
-                  <select id="ci_verifTransferencias" required>
-                    <option value="">Seleccionar...</option>
-                    <option value="Coincide">Coincide</option>
-                    <option value="No coincide">No coincide</option>
-                  </select>
-                </div>
-              </div>
-              <div class="totals-row" id="ci_diffTransfBlock"></div>
             </div>
 
             <div class="form-grid">
@@ -560,14 +542,6 @@
               <div class="form-grid">
                 <div class="field locked"><label id="lbl_sp">Total Datafono(s) Principal(es) (automatico)</label><input type="number" id="ci_sumaPrincipales" step="0.01" readonly></div>
                 <div class="field"><label id="lbl_tfp">Total facturado electronicamente (Datafono Principal) <span class="req">*</span></label><input type="number" id="ci_facturadoPrincipales" step="0.01"></div>
-                <div class="field">
-                  <label id="lbl_vdp">&iquest;Coincide facturacion con Datafono(s) Principal(es)? <span class="req">*</span></label>
-                  <select id="ci_verifPrincipales">
-                    <option value="">Seleccionar...</option>
-                    <option value="Coincide">Coincide</option>
-                    <option value="No coincide">No coincide</option>
-                  </select>
-                </div>
               </div>
               <div class="totals-row" id="ci_diffPrincipalesBlock"></div>
             </div>
@@ -920,15 +894,11 @@ document.getElementById("head_rank").innerHTML = icon("users",17) + "Responsable
 document.getElementById("head_cumpl").innerHTML = icon("checkc",17) + "Cumplimiento operativo";
 document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control de bolsas de seguridad";
 [["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],
- ["lbl_ts","swap","Transferencias sistema *"],["lbl_tc","swap","Transferencias contadas *"],["lbl_ctr","image","Comprobantes de transferencias"],
- ["lbl_ftr","invoice","Total facturado electronicamente (transferencias) *"],
- ["lbl_btr","swap","Total recibido en cuenta principal (reporte banco) *"],
- ["lbl_vtr","checkc","&iquest;Coincide facturacion con transferencias a cuenta principal? *"],
+ ["lbl_ts","swap","Transferencias sistema *"],["lbl_tc","swap","Transferencias contadas *"],
  ["lbl_tjs","card","Tarjetas sistema *"],["lbl_tjc","lock","Tarjetas contadas (automatico)"],["lbl_cdf","image","Comprobante de cierre de datafono"],
  ["lbl_dp1","card","Datafono 1 Principal"],["lbl_dp2","card","Datafono 2 Principal"],["lbl_da","card","Datafono 3 Alterno"],
  ["lbl_sp","lock","Total Datafono(s) Principal(es) (automatico)"],
  ["lbl_tfp","invoice","Total facturado electronicamente (Datafono Principal) *"],
- ["lbl_vdp","checkc","&iquest;Coincide facturacion con Datafono(s) Principal(es)? *"],
  ["lbl_gc","coins","Gastos de caja *"],["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
  ["lbl_compMesa","table","Mesa *"],
  ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
@@ -941,8 +911,7 @@ document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control 
 document.getElementById("head_comp").innerHTML = icon("camera",17) + "Nueva foto de comprobante";
 document.getElementById("comp_submitBtn").innerHTML = icon("checkc",17) + "Guardar comprobante";
 document.getElementById("navIcon4").innerHTML = icon("camera");
-document.getElementById("transfNote").innerHTML = icon("shield",14) + " Verifica que lo facturado electronicamente por transferencias coincida con lo que realmente entro a la cuenta principal segun el reporte del banco.";
-document.getElementById("principalesNote").innerHTML = icon("shield",14) + " Los Datafonos Principales facturan electronicamente todo lo que entra en ellos. La suma de lo contado en Datafono 1 y 2 Principal aparece automaticamente; solo digita el total facturado electronicamente para verificar que coincidan.";
+document.getElementById("principalesNote").innerHTML = icon("shield",14) + " Los Datafonos Principales facturan electronicamente todo lo que entra en ellos. La suma de lo contado en Datafono 1 y 2 Principal aparece automaticamente; solo digita el total facturado electronicamente y la verificacion se calcula sola (si la diferencia da $0, coincide).";
 document.getElementById("al_submitBtn").innerHTML = icon("checkc",17) + "Completar apertura de caja";
 document.getElementById("ci_submitBtn").innerHTML = icon("checkc",17) + "Enviar cierre";
 document.querySelectorAll('[onclick="window.print()"]').forEach(b => b.innerHTML = icon("printer",15) + "Imprimir");
@@ -1312,7 +1281,7 @@ const ciDatafonoP2Check = document.getElementById("ci_datafonoP2_activo");
 const ciDatafonoAltCheck = document.getElementById("ci_datafonoAlterno_activo");
 const ciTarjetasContadas = document.getElementById("ci_tarjetasContadas");
 const verifPrincipalesBlock = document.getElementById("ci_verifPrincipalesBlock");
-const verifPrincipalesFields = ["ci_facturadoPrincipales", "ci_verifPrincipales"];
+const verifPrincipalesFields = ["ci_facturadoPrincipales"];
 const ciSumaPrincipales = document.getElementById("ci_sumaPrincipales");
 
 function recomputeTarjetasContadas() {
@@ -1346,20 +1315,18 @@ function updatePrincipalesBlock() {
 function computeDiffPrincipales() {
   return Number(document.getElementById("ci_facturadoPrincipales").value || 0) - Number(ciSumaPrincipales.value || 0);
 }
+/* La verificacion ya no se elige manualmente: si la diferencia da $0, coincide automaticamente. */
+function verifPrincipalesAuto() {
+  return computeDiffPrincipales() === 0 ? "Coincide" : "No coincide";
+}
 function renderDiffPrincipales() {
   const diff = computeDiffPrincipales();
+  const coincide = diff === 0;
   document.getElementById("ci_diffPrincipalesBlock").innerHTML =
     `<div class="total-card"><div class="label">Diferencia facturacion vs Datafono(s) Principal(es)</div>
-      <div class="value ${diff === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(diff)}</div></div>`;
-}
-function computeDiffTransferencias() {
-  return Number(document.getElementById("ci_facturadoTransferencias").value || 0) - Number(document.getElementById("ci_bancoTransferencias").value || 0);
-}
-function renderDiffTransferencias() {
-  const diff = computeDiffTransferencias();
-  document.getElementById("ci_diffTransfBlock").innerHTML =
-    `<div class="total-card"><div class="label">Diferencia facturacion vs transferencias a cuenta principal</div>
-      <div class="value ${diff === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(diff)}</div></div>`;
+      <div class="value ${coincide ? 'diff-ok' : 'diff-bad'}">${fmtMoney(diff)}</div></div>` +
+    `<div class="total-card"><div class="label">Verificacion</div>
+      <div class="value ${coincide ? 'diff-ok' : 'diff-bad'}">${verifPrincipalesAuto()}</div></div>`;
 }
 
 ciDatafonoP1Check.addEventListener("change", () => {
@@ -1380,8 +1347,6 @@ ciDatafonoP1.addEventListener("input", () => { recomputeTarjetasContadas(); reco
 ciDatafonoP2.addEventListener("input", () => { recomputeTarjetasContadas(); recomputeSumaPrincipales(); });
 ciDatafonoAlterno.addEventListener("input", recomputeTarjetasContadas);
 document.getElementById("ci_facturadoPrincipales").addEventListener("input", renderDiffPrincipales);
-["ci_facturadoTransferencias","ci_bancoTransferencias"].forEach(id =>
-  document.getElementById(id).addEventListener("input", renderDiffTransferencias));
 
 /* Autorrelleno: si el alistamiento de hoy marco algun datafono en uso, marcamos las mismas
    casillas en el Cierre (solo la primera vez, si el cajero no ha tocado nada todavia). */
@@ -1469,10 +1434,6 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       transferenciasSistema: Number(document.getElementById("ci_transfSistema").value),
       transferenciasContadas: Number(document.getElementById("ci_transfContadas").value),
       diferenciaTransferencias: dTransf,
-      facturadoTransferencias: Number(document.getElementById("ci_facturadoTransferencias").value || 0),
-      bancoTransferencias: Number(document.getElementById("ci_bancoTransferencias").value || 0),
-      verifTransferencias: document.getElementById("ci_verifTransferencias").value,
-      diferenciaFacturacionTransferencias: computeDiffTransferencias(),
       tarjetasSistema: Number(document.getElementById("ci_tarjetasSistema").value),
       tarjetasContadas: Number(document.getElementById("ci_tarjetasContadas").value),
       diferenciaTarjetas: dTarjetas,
@@ -1481,7 +1442,7 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       datafonoAlterno: Number(document.getElementById("ci_datafonoAlterno").value || 0),
       sumaPrincipales: (p1Activo || p2Activo) ? Number(ciSumaPrincipales.value || 0) : null,
       facturadoPrincipales: (p1Activo || p2Activo) ? Number(document.getElementById("ci_facturadoPrincipales").value || 0) : null,
-      verifPrincipales: (p1Activo || p2Activo) ? document.getElementById("ci_verifPrincipales").value : null,
+      verifPrincipales: (p1Activo || p2Activo) ? verifPrincipalesAuto() : null,
       diferenciaPrincipales: (p1Activo || p2Activo) ? computeDiffPrincipales() : null,
       gastosCaja: Number(document.getElementById("ci_gastosCaja").value),
       bolsaSeguridad: Number(document.getElementById("ci_bolsaSeguridad").value),
@@ -1489,7 +1450,6 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       bolsaRecibidaEn: null,
       bolsaRecibidaPor: null,
       observaciones: document.getElementById("ci_observaciones").value.trim(),
-      comprobantesTransferencias: await filesToBase64(document.getElementById("ci_comprobantesTransferencias")),
       comprobanteDatafono: await filesToBase64(document.getElementById("ci_comprobanteDatafono")),
       comprobantesGastos: await filesToBase64(document.getElementById("ci_comprobantesGastos")),
       rol: currentRole,
@@ -1510,7 +1470,6 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
     ciTarjetasContadas.value = "";
     renderLiveDiff();
     renderDiffPrincipales();
-    renderDiffTransferencias();
     renderStatCards();
     toast("Cierre de caja registrado.");
   } catch (err) {
@@ -1776,8 +1735,6 @@ function openCierreDetail(r) {
       ${detailRow("Diferencia efectivo", fmtMoney(r.diferenciaEfectivo))}
       ${detailRow("Transferencias sistema / contadas", fmtMoney(r.transferenciasSistema) + " / " + fmtMoney(r.transferenciasContadas))}
       ${detailRow("Diferencia transferencias", fmtMoney(r.diferenciaTransferencias))}
-      ${detailRow("Facturado electronicamente (transferencias) / banco cuenta principal", (r.facturadoTransferencias != null ? fmtMoney(r.facturadoTransferencias) : "-") + " / " + (r.bancoTransferencias != null ? fmtMoney(r.bancoTransferencias) : "-"))}
-      ${detailRow("Verif. facturacion vs. transferencias", verifDianPill(r.verifTransferencias))}
       ${detailRow("Tarjetas sistema / contadas", fmtMoney(r.tarjetasSistema) + " / " + fmtMoney(r.tarjetasContadas))}
       ${detailRow("Diferencia tarjetas", fmtMoney(r.diferenciaTarjetas))}
       ${detailRow("Datafono 1 Principal (monto)", r.datafonoP1 != null ? fmtMoney(r.datafonoP1) : "N/A")}
@@ -1790,7 +1747,6 @@ function openCierreDetail(r) {
     </div>
     ${denomRows ? `<div class="table-wrap" style="max-height:200px"><table><thead><tr><th>Denominacion</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>${denomRows}</tbody></table></div>` : ""}
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
-    ${thumbRow("Comprobantes de transferencias", r.comprobantesTransferencias)}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
     ${thumbRow("Comprobantes de gastos", r.comprobantesGastos)}
   `;
@@ -1995,11 +1951,9 @@ function renderPanelGerencial() {
   const totalDescuadre = rows.reduce((a,r) => a + Math.abs(r.diferenciaEfectivo||0) + Math.abs(r.diferenciaTransferencias||0) + Math.abs(r.diferenciaTarjetas||0), 0);
   const conDescuadre = rows.filter(r => (r.diferenciaEfectivo||0)!==0 || (r.diferenciaTransferencias||0)!==0 || (r.diferenciaTarjetas||0)!==0).length;
   const turnosPrincipales = rows.filter(r => Number(r.datafonoP1) > 0 || Number(r.datafonoP2) > 0);
-  const turnosTransf = rows.filter(r => r.verifTransferencias);
   const coincidePrincipales = turnosPrincipales.filter(r => principalesResumen(r).verif === "Coincide").length;
-  const coincideTransf = turnosTransf.filter(r => r.verifTransferencias === "Coincide").length;
-  const totalVerificaciones = turnosPrincipales.length + turnosTransf.length;
-  const totalCoincide = coincidePrincipales + coincideTransf;
+  const totalVerificaciones = turnosPrincipales.length;
+  const totalCoincide = coincidePrincipales;
   const pctDian = totalVerificaciones ? Math.round(totalCoincide/totalVerificaciones*100) : 100;
   const turnosAlterno = rows.filter(r => Number(r.datafonoAlterno) > 0).length;
   const promDescuadre = rows.length ? totalDescuadre / rows.length : 0;
@@ -2012,7 +1966,7 @@ function renderPanelGerencial() {
     kpiCard("Ventas totales", fmtMoney(totalVentas), "Efectivo + transf. + tarjetas") +
     kpiCard("Descuadre acumulado", fmtMoney(totalDescuadre), conDescuadre + " cierres con diferencia", totalDescuadre>0) +
     kpiCard("Descuadre promedio / cierre", fmtMoney(promDescuadre)) +
-    kpiCard("Cumplimiento facturacion", pctDian + "%", totalCoincide + "/" + totalVerificaciones + " verificaciones (Datafono Principal y transferencias)", pctDian<100) +
+    kpiCard("Cumplimiento facturacion", pctDian + "%", totalCoincide + "/" + totalVerificaciones + " verificaciones de Datafono Principal", pctDian<100) +
     kpiCard("Datafono / tarjetas", pctTarjetas + "%", "Meta: maximo " + META_DATAFONO_PCT + "% de las ventas", metaSuperada) +
     kpiCard("Turnos con datafono alterno", turnosAlterno) +
     kpiCard("Comprobantes de transferencia", compRows.length, "Fotos registradas en el rango");
@@ -2144,7 +2098,6 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
     { header: "Fecha", key: "fecha" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos con movimiento", key: "datafonos" },
     { header: "Efectivo sistema", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Dif. efectivo", key: "de" },
     { header: "Transf. sistema", key: "ts" }, { header: "Transf. contadas", key: "tc" }, { header: "Dif. transf.", key: "dt" },
-    { header: "Facturado transf.", key: "ftr" }, { header: "Banco transf.", key: "btr" }, { header: "Verif. transf.", key: "vtr" },
     { header: "Tarjetas sistema", key: "tjs" }, { header: "Tarjetas contadas", key: "tjc" }, { header: "Dif. tarjetas", key: "dtj" },
     { header: "Datafono P1", key: "dp1" }, { header: "Datafono P2", key: "dp2" }, { header: "Datafono Alterno", key: "da" },
     { header: "Suma Datafono Principal", key: "sp" }, { header: "Facturado Principal", key: "fp" }, { header: "Verif. Principal", key: "vp" },
@@ -2152,7 +2105,6 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
   ];
   const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), es: r.efectivoSistema, ec: r.efectivoContado, de: r.diferenciaEfectivo,
     ts: r.transferenciasSistema, tc: r.transferenciasContadas, dt: r.diferenciaTransferencias,
-    ftr: r.facturadoTransferencias, btr: r.bancoTransferencias, vtr: r.verifTransferencias,
     tjs: r.tarjetasSistema, tjc: r.tarjetasContadas, dtj: r.diferenciaTarjetas,
     dp1: r.datafonoP1, dp2: r.datafonoP2, da: r.datafonoAlterno,
     sp: pr.suma, fp: pr.facturado, vp: pr.verif,
