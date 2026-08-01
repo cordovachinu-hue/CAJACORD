@@ -1371,11 +1371,14 @@ function autoFillDatafonoCierre() {
 /* ============================= DIFERENCIAS + STAT CARDS EN VIVO ============================= */
 function computeDiffs() {
   const num = id => Number(document.getElementById(id).value || 0);
-  /* Los gastos de caja salen en efectivo del cajon durante el turno, asi que se descuentan
-     del efectivo del sistema antes de comparar contra lo fisicamente contado. */
+  /* El gasto de caja es una salida de efectivo normal y ya esperada: no debe hacer ver
+     como si hubiera un descuadre. La "Diferencia efectivo" compara el conteo fisico
+     contra lo que dice el sistema en ventas de efectivo (sin restar gastos). El total
+     en efectivo (ingresos - gastos) queda solo como dato informativo, por ejemplo para
+     saber cuanto guardar en la bolsa de seguridad. */
   const efectivoEsperado = num("ci_efectivoSistema") - num("ci_gastosCaja");
   return {
-    dEfectivo: num("ci_efectivoContado") - efectivoEsperado,
+    dEfectivo: num("ci_efectivoContado") - num("ci_efectivoSistema"),
     dTransf: num("ci_transfContadas") - num("ci_transfSistema"),
     dTarjetas: num("ci_tarjetasContadas") - num("ci_tarjetasSistema"),
     efectivoEsperado,
