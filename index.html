@@ -68,6 +68,13 @@
   .collapse-btn:hover { background:rgba(255,255,255,.06); }
   #main { flex:1; display:flex; flex-direction:column; min-width:0; }
   #topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 30px; background:var(--card-bg); border-bottom:1px solid var(--border); gap:16px; flex-wrap:wrap; }
+  .topbar-left { display:flex; align-items:center; gap:12px; min-width:0; }
+  #btnHamburger {
+    display:none; align-items:center; justify-content:center; width:34px; height:34px; flex-shrink:0;
+    border:1px solid var(--border); border-radius:9px; background:#fff; color:var(--espresso); cursor:pointer; padding:0;
+  }
+  #sidebarBackdrop { display:none; position:fixed; inset:0; background:rgba(20,14,8,.5); z-index:150; }
+  #sidebarBackdrop.show { display:block; }
   .breadcrumb { font-size:13px; color:var(--text-light); }
   .breadcrumb b { color:var(--espresso); }
   .topbar-right { display:flex; align-items:center; gap:16px; }
@@ -83,6 +90,7 @@
   h2.page-title { margin:0 0 4px 0; color:var(--espresso); font-size:22px; }
   .subtitle { color:var(--text-light); margin:0 0 20px 0; font-size:13.5px; }
   .card { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:18px; box-shadow:0 1px 3px rgba(43,32,22,.05); }
+  .comp-card { max-width:480px; }
   .card-head { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:800; color:var(--espresso); margin-bottom:14px; }
   .card-head svg { color:var(--wood); }
   h3.section-title { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--wood-dark); text-transform:uppercase; letter-spacing:.5px; margin:22px 0 12px 0; padding-bottom:6px; border-bottom:1px solid var(--border); }
@@ -158,6 +166,13 @@
 
   /* KPI cards (panel gerencial) */
   .kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:14px; margin-bottom:20px; }
+  .meta-alerta {
+    display:flex; align-items:flex-start; gap:12px; background:var(--danger-bg); border:1px solid var(--danger);
+    border-radius:12px; padding:14px 16px; margin-bottom:18px; color:var(--danger);
+  }
+  .meta-alerta svg { flex-shrink:0; margin-top:2px; }
+  .meta-alerta b { display:block; margin-bottom:3px; font-size:14px; }
+  .meta-alerta p { margin:0; font-size:13px; line-height:1.5; color:var(--text); }
   .kpi-card { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
   .kpi-card .label { font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:.4px; font-weight:700; }
   .kpi-card .value { font-size:21px; font-weight:800; color:var(--espresso); margin-top:6px; }
@@ -178,6 +193,38 @@
   .seg-btn.missing { background:#fff8ec; }
   .check-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
   @media (max-width: 760px) { .check-grid { grid-template-columns:1fr; } }
+
+  /* ============================= MOBIL: SIDEBAR COMO CAJON (DRAWER) ============================= */
+  @media (max-width: 860px) {
+    #layout { display:block; }
+    #sidebar {
+      position:fixed; top:0; left:0; height:100vh; width:250px; max-width:82vw;
+      transform:translateX(-100%); transition:transform .22s ease; z-index:200; box-shadow:6px 0 24px rgba(0,0,0,.35);
+    }
+    #sidebar.mobile-open { transform:translateX(0); }
+    #sidebar.collapsed { width:250px; }
+    #sidebar.collapsed .sidebar-text, #sidebar.collapsed .quote-card, #sidebar.collapsed .role-badge { display:revert !important; }
+    #sidebar.collapsed .nav-item { text-align:left; padding:12px 20px; }
+    #sidebar.collapsed .brand { padding:22px 20px 16px 20px; }
+    #btnCollapse { display:none !important; }
+    #btnHamburger { display:flex; }
+    #main { width:100%; }
+    #topbar { padding:12px 14px; }
+    #content { padding:16px 14px 34px 14px; }
+    h2.page-title { font-size:19px; }
+    .card { padding:16px 14px; }
+    .comp-card { max-width:100% !important; }
+    .topbar-clock { display:none; }
+  }
+  @media (max-width: 480px) {
+    .check-item { grid-template-columns:28px 1fr; grid-template-rows:auto auto; row-gap:8px; padding:10px 2px; }
+    .check-item .check-icon { grid-row:1; }
+    .check-item .check-label { grid-row:1; }
+    .check-item .seg { grid-column:1 / -1; grid-row:2; flex-shrink:1; width:100%; }
+    .check-item .seg .seg-btn { flex:1; }
+    .kpi-row { grid-template-columns:1fr !important; }
+    th, td { padding:7px 6px; font-size:12px; }
+  }
 
   /* Progress ring */
   .progress-box { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:16px; min-width:230px; }
@@ -292,6 +339,7 @@
 </div>
 
 <div id="layout" style="display:none">
+  <div id="sidebarBackdrop"></div>
   <div id="sidebar">
     <div class="brand">
       <img class="logo" id="logoSidebar" alt="Cordova">
@@ -306,7 +354,7 @@
       <a class="nav-item role-caja role-gerente" data-view="alistamiento"><span id="navIcon1"></span><span class="sidebar-text">Alistamiento Inicial</span><span class="dot-badge" id="alarmDot" style="display:none"></span></a>
       <a class="nav-item role-caja role-gerente" data-view="cierre"><span id="navIcon2"></span><span class="sidebar-text">Cierre de Caja</span></a>
       <a class="nav-item role-caja role-mesero role-gerente" data-view="comprobantes"><span id="navIcon4"></span><span class="sidebar-text">Comprobantes</span></a>
-      <a class="nav-item role-gerente" data-view="panel" id="navPanel"><span id="navIcon3"></span><span class="sidebar-text">Panel Gerencial</span></a>
+      <a class="nav-item role-gerente" data-view="panel" id="navPanel"><span id="navIcon3"></span><span class="sidebar-text">Panel Gerencial</span><span class="dot-badge" id="metaDot" style="display:none"></span></a>
     </nav>
     <div class="quote-card sidebar-text">&ldquo;Orden y preparacion hoy, excelencia en el servicio siempre.&rdquo;</div>
     <div class="sidebar-footer">
@@ -318,7 +366,10 @@
 
   <div id="main">
     <div id="topbar">
-      <div class="breadcrumb"><span id="crumbView">Alistamiento</span> / <b id="crumbSub">Apertura de Caja</b></div>
+      <div class="topbar-left">
+        <button type="button" id="btnHamburger" aria-label="Abrir menu"></button>
+        <div class="breadcrumb"><span id="crumbView">Alistamiento</span> / <b id="crumbSub">Apertura de Caja</b></div>
+      </div>
       <div class="topbar-right">
         <div class="topbar-clock" id="clockNow">-</div>
         <div class="bell-wrap" id="bellBtn">
@@ -467,6 +518,7 @@
               <div class="field"><label id="lbl_tc">Transferencias contadas <span class="req">*</span></label><input type="number" id="ci_transfContadas" step="0.01" required></div>
               <div class="field"><label id="lbl_ctr">Comprobantes de transferencias</label><input type="file" id="ci_comprobantesTransferencias" accept="image/*" multiple></div>
             </div>
+            <div id="ci_iaBlock" class="totals-row" style="margin:0 0 14px 0"></div>
             <div class="form-grid">
               <div class="field"><label id="lbl_tjs">Tarjetas sistema <span class="req">*</span></label><input type="number" id="ci_tarjetasSistema" step="0.01" required></div>
               <div class="field"><label id="lbl_tjc">Tarjetas contadas <span class="req">*</span></label><input type="number" id="ci_tarjetasContadas" step="0.01" required></div>
@@ -564,11 +616,19 @@
       <h2 class="page-title">Comprobantes de Transferencias</h2>
       <p class="subtitle">Foto del comprobante apenas se recibe una transferencia, con el nombre de quien la recibio.</p>
 
-      <div class="card" style="max-width:480px">
+      <div class="card comp-card">
         <div class="card-head" id="head_comp"></div>
         <div class="field">
+          <label id="lbl_compMesa">Mesa <span class="req">*</span></label>
+          <select id="comp_mesa" required>
+            <option value="">Seleccionar...</option>
+          </select>
+        </div>
+        <div class="field">
           <label id="lbl_compNombre">Nombre de quien recibe <span class="req">*</span></label>
-          <input type="text" id="comp_nombre" list="personalList" placeholder="Nombre del mesero o cajero" required>
+          <select id="comp_nombre" required>
+            <option value="">Seleccionar...</option>
+          </select>
         </div>
         <div class="field">
           <label id="lbl_compMonto">Monto de la transferencia</label>
@@ -594,8 +654,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Hora</th><th>Nombre</th><th>Monto</th><th>Nota</th><th>Foto</th></tr></thead>
-            <tbody id="comp_tbody"><tr><td colspan="5"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <thead><tr><th>Hora</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Lectura IA</th><th>Nota</th><th>Foto</th></tr></thead>
+            <tbody id="comp_tbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -605,6 +665,8 @@
     <div id="view-panel" class="view" style="display:none">
       <h2 class="page-title">Panel Gerencial &mdash; Reportes y Conciliacion</h2>
       <p class="subtitle">Acumulados por medio de pago, descuadres, tendencias y cumplimiento operativo.</p>
+
+      <div id="metaAlerta" class="meta-alerta" style="display:none"></div>
 
       <div class="card no-print">
         <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end">
@@ -731,6 +793,7 @@ document.getElementById("favicon").href = LOGO_SRC;
 document.getElementById("logoHome").src = LOGO_SRC;
 document.getElementById("logoSidebar").src = LOGO_SRC;
 
+const META_DATAFONO_PCT = 35; // meta: pagos con datafono/tarjetas no deben superar este % de las ventas
 const PIN_GERENTE = "200810143037";
 const PIN_CAJA = "5050";
 const PIN_MESERO = "4567";
@@ -770,6 +833,7 @@ const RAW_ICONS = {
   swap: '<path d="M7 7h11l-3-3M17 17H6l3 3"/>',
   coins: '<circle cx="9" cy="9" r="6"/><circle cx="15" cy="15" r="6"/>',
   close: '<path d="M5 5l14 14M19 5 5 19"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   book: '<path d="M4 4h13a2 2 0 0 1 2 2v14H6a2 2 0 0 0-2 2z"/><path d="M19 20a2 2 0 0 1 0-4H6"/>',
@@ -817,6 +881,7 @@ document.getElementById("navIcon3").innerHTML = icon("chart");
 document.getElementById("navIconChange").innerHTML = icon("users", 16);
 document.getElementById("navIconCollapse").innerHTML = icon("collapse", 16);
 document.getElementById("bellIcon").innerHTML = icon("bell", 20);
+document.getElementById("btnHamburger").innerHTML = icon("menu", 19);
 document.getElementById("detailModalClose").innerHTML = icon("close", 20);
 document.getElementById("alarmIcon").innerHTML = icon("clock", 30);
 document.getElementById("lbl_al_responsable").innerHTML = icon("users",15) + 'Responsable de apertura de caja <span class="req">*</span>';
@@ -841,6 +906,7 @@ document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control 
  ["lbl_tfd","invoice","Total facturado electronicamente *"],
  ["lbl_vd","checkc","&iquest;Coincide facturacion con datafono principal? *"],
  ["lbl_gc","coins","Gastos de caja *"],["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
+ ["lbl_compMesa","table","Mesa *"],
  ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
  ["lbl_compFoto","camera","Foto del comprobante *"],["lbl_compNota","invoice","Nota"]
 ].forEach(([id, ic, txt]) => {
@@ -957,6 +1023,8 @@ navItems.forEach(item => {
     document.getElementById("crumbSub").textContent = c[1];
     if (item.dataset.view === "panel") renderPanelGerencial();
     if (item.dataset.view === "cierre" && typeof autoFillDatafonoCierre === "function") autoFillDatafonoCierre();
+    if (item.dataset.view === "cierre" && typeof renderComprobantesIABlock === "function") renderComprobantesIABlock();
+    closeMobileSidebar();
   });
 });
 navItems[0].classList.add("active");
@@ -964,6 +1032,22 @@ navItems[0].classList.add("active");
 document.getElementById("btnCollapse").addEventListener("click", () => {
   document.getElementById("sidebar").classList.toggle("collapsed");
 });
+
+/* ============================= CAJON DE MENU EN CELULAR ============================= */
+const sidebarEl = document.getElementById("sidebar");
+const sidebarBackdrop = document.getElementById("sidebarBackdrop");
+function openMobileSidebar() {
+  sidebarEl.classList.add("mobile-open");
+  sidebarBackdrop.classList.add("show");
+}
+function closeMobileSidebar() {
+  sidebarEl.classList.remove("mobile-open");
+  sidebarBackdrop.classList.remove("show");
+}
+document.getElementById("btnHamburger").addEventListener("click", () => {
+  if (sidebarEl.classList.contains("mobile-open")) closeMobileSidebar(); else openMobileSidebar();
+});
+sidebarBackdrop.addEventListener("click", closeMobileSidebar);
 
 /* Reloj en vivo */
 function tickClock() {
@@ -1125,6 +1209,26 @@ async function filesToBase64(inputEl, maxFiles) {
   return out;
 }
 
+/* ============================= LECTURA DE COMPROBANTES CON IA ============================= */
+async function leerComprobanteIA(dataUri) {
+  try {
+    const m = /^data:([^;]+);base64,(.*)$/.exec(dataUri || "");
+    if (!m) return null;
+    const resp = await fetch("/api/leer-comprobante", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imageBase64: m[2], mediaType: m[1] }),
+    });
+    if (!resp.ok) return null;
+    const out = await resp.json();
+    if (out && out.error) return null;
+    return out;
+  } catch (err) {
+    console.error("Lectura IA no disponible:", err);
+    return null;
+  }
+}
+
 /* ============================= CONTEO DE MONEDAS Y BILLETES ============================= */
 const DENOMINACIONES = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
 document.getElementById("denomTbody").innerHTML = DENOMINACIONES.map(d => `
@@ -1224,6 +1328,29 @@ function renderLiveDiff() {
   document.getElementById("ci_liveDiff").innerHTML =
     card("Diferencia efectivo", dEfectivo) + card("Diferencia transferencias", dTransf) + card("Diferencia tarjetas", dTarjetas);
 }
+
+/* ============================= COMPARATIVO IA: COMPROBANTES DE HOY VS TRANSFERENCIAS CONTADAS ============================= */
+function renderComprobantesIABlock() {
+  const el = document.getElementById("ci_iaBlock");
+  if (!el) return;
+  const todays = (comprobantesCache || []).filter(r => r.fecha === todayStr());
+  const legibles = todays.filter(r => r.legibleIA === true);
+  const noLegibles = todays.filter(r => r.legibleIA === false);
+  const totalIA = todays.reduce((a, r) => {
+    if (r.legibleIA === true && r.montoIA != null) return a + Number(r.montoIA);
+    if (r.monto != null) return a + Number(r.monto);
+    return a;
+  }, 0);
+  const contadas = Number(document.getElementById("ci_transfContadas").value || 0);
+  const diff = contadas - totalIA;
+  const card = (label, val, cls) => `<div class="total-card"><div class="label">${label}</div>
+    <div class="value ${cls || ''}">${val}</div></div>`;
+  el.innerHTML =
+    card("Comprobantes de hoy (lectura IA)", fmtMoney(totalIA)) +
+    card("Diferencia vs. transferencias contadas", fmtMoney(diff), diff === 0 ? 'diff-ok' : 'diff-bad') +
+    card("Comprobantes no legibles", noLegibles.length, noLegibles.length > 0 ? 'diff-bad' : 'diff-ok');
+}
+document.getElementById("ci_transfContadas").addEventListener("input", renderComprobantesIABlock);
 function renderStatCards() {
   const num = id => Number(document.getElementById(id).value || 0);
   const { dEfectivo, dTransf, dTarjetas } = computeDiffs();
@@ -1324,6 +1451,7 @@ function startListeners() {
     updateResponsablesList();
     if (document.getElementById("view-panel").style.display !== "none") renderPanelGerencial();
     else renderBolsasSeguridad();
+    if (typeof renderMetaAlerta === "function") renderMetaAlerta();
   });
 
   const qCo = query(collection(db, COL_COMPROBANTES), orderBy("creadoEn", "desc"));
@@ -1331,11 +1459,24 @@ function startListeners() {
     comprobantesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderComprobantesTable();
     updateResponsablesList();
+    if (typeof renderComprobantesIABlock === "function") renderComprobantesIABlock();
   });
 }
 
 const CAJEROS = ["Camilo", "Jose", "Kiara", "Angelica"];
 const MESEROS = ["Reinaldo", "Marianela", "Andi", "Lina", "Mairo", "Pedro", "Misael", "Auxiliar 1", "Auxiliar 2"];
+
+/* Comprobantes: selector de mesa (1 a 80) y selector de mesero/cajero */
+(function initComprobanteSelects() {
+  const mesaSel = document.getElementById("comp_mesa");
+  let mesaOpts = '<option value="">Seleccionar...</option>';
+  for (let i = 1; i <= 80; i++) mesaOpts += `<option value="${i}">Mesa ${i}</option>`;
+  mesaSel.innerHTML = mesaOpts;
+
+  const nombreSel = document.getElementById("comp_nombre");
+  nombreSel.innerHTML = '<option value="">Seleccionar...</option>' +
+    [...MESEROS, ...CAJEROS].map(n => `<option value="${n}">${n}</option>`).join("");
+})();
 
 function updateResponsablesList() {
   const cajerosNames = new Set(CAJEROS);
@@ -1349,48 +1490,72 @@ function updateResponsablesList() {
 }
 updateResponsablesList();
 
+function legiblePill(r) {
+  if (r.legibleIA === true) return '<span class="pill ok">' + icon("checkc", 12) + 'Legible</span>';
+  if (r.legibleIA === false) return '<span class="pill warn">' + icon("alert", 12) + 'No legible</span>';
+  return '<span class="pill off">Sin leer</span>';
+}
+function montoComprobante(r) {
+  if (r.legibleIA === true && r.montoIA != null) return fmtMoney(r.montoIA);
+  if (r.monto != null) return fmtMoney(r.monto);
+  return "-";
+}
 function renderComprobantesTable() {
   const tbody = document.getElementById("comp_tbody");
   const todays = comprobantesCache.filter(r => r.fecha === todayStr());
   if (!todays.length) {
-    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
     return;
   }
   tbody.innerHTML = todays.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${r.mesero || "-"}</td><td>${r.monto != null ? fmtMoney(r.monto) : "-"}</td><td>${r.nota || "-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td>${legiblePill(r)}</td><td>${r.nota || "-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="window.open(this.src)">` : "-"}</td>
     </tr>`).join("");
 }
 
 document.getElementById("comp_submitBtn").addEventListener("click", async () => {
   const statusEl = document.getElementById("comp_status");
+  const mesa = document.getElementById("comp_mesa").value;
   const nombre = document.getElementById("comp_nombre").value.trim();
   const fotoInput = document.getElementById("comp_foto");
-  if (!nombre || !fotoInput.files.length) {
-    toast("Falta el nombre o la foto del comprobante.", true);
+  if (!mesa || !nombre || !fotoInput.files.length) {
+    toast("Falta la mesa, el nombre o la foto del comprobante.", true);
     return;
   }
   try {
     statusEl.textContent = "Guardando...";
     const fotoArr = await filesToBase64(fotoInput, 1);
     const montoVal = document.getElementById("comp_monto").value;
+    statusEl.textContent = "Leyendo comprobante...";
+    const lectura = fotoArr[0] ? await leerComprobanteIA(fotoArr[0]) : null;
     const data = {
+      mesa: mesa,
       mesero: nombre,
       monto: montoVal ? Number(montoVal) : null,
       nota: document.getElementById("comp_nota").value.trim(),
       foto: fotoArr[0] || null,
       fecha: todayStr(),
       rol: currentRole,
+      legibleIA: lectura ? lectura.legible : null,
+      montoIA: lectura ? lectura.monto : null,
+      entidadIA: lectura ? lectura.entidad : null,
+      fechaIA: lectura ? lectura.fecha : null,
+      referenciaIA: lectura ? lectura.referencia : null,
       creadoPor: auth.currentUser ? auth.currentUser.uid : null,
       creadoEn: serverTimestamp(),
     };
     await addDoc(collection(db, COL_COMPROBANTES), data);
     statusEl.textContent = "";
+    document.getElementById("comp_mesa").value = "";
     document.getElementById("comp_nombre").value = "";
     document.getElementById("comp_monto").value = "";
     document.getElementById("comp_nota").value = "";
     fotoInput.value = "";
-    toast("Comprobante guardado.");
+    if (lectura && lectura.legible === false) {
+      toast("Comprobante guardado, pero la foto no se leyo bien. Revisala en Cierre.", true);
+    } else {
+      toast("Comprobante guardado.");
+    }
   } catch (err) {
     statusEl.textContent = "";
     toast("Error al guardar. Revisa tu conexion.", true);
@@ -1637,6 +1802,44 @@ function renderBolsasSeguridad() {
   });
 }
 
+/* ============================= META DE MEDIOS DE PAGO (DATAFONO) ============================= */
+function computeMetaEstado() {
+  const rows = filteredCierres();
+  const sum = key => rows.reduce((a, r) => a + (Number(r[key]) || 0), 0);
+  const totalEfectivo = sum("efectivoContado"), totalTransf = sum("transferenciasContadas"), totalTarjetas = sum("tarjetasContadas");
+  const totalVentas = totalEfectivo + totalTransf + totalTarjetas;
+  const pct = totalVentas > 0 ? Math.round((totalTarjetas / totalVentas) * 100) : 0;
+  return { pct, cumple: pct <= META_DATAFONO_PCT, totalVentas, totalTarjetas };
+}
+
+let metaNotificacionMostrada = false;
+function renderMetaAlerta() {
+  const banner = document.getElementById("metaAlerta");
+  const dot = document.getElementById("metaDot");
+  if (!banner || !dot) return;
+  const estado = computeMetaEstado();
+
+  dot.style.display = estado.cumple ? "none" : "block";
+
+  if (estado.cumple || estado.totalVentas === 0) {
+    banner.style.display = "none";
+  } else {
+    banner.style.display = "flex";
+    banner.innerHTML = icon("alert", 22) +
+      `<div><b>Meta de medios de pago incumplida: ${estado.pct}% en datafono (meta: maximo ${META_DATAFONO_PCT}%)</b>
+      <p>El uso del datafono esta por encima de la meta en el rango seleccionado. Para bajarlo, fomenten mas pagos en efectivo y transferencias: recuerden a los meseros ofrecer estas opciones primero, revisen si hay comisiones o demoras del datafono que esten desmotivando su uso correcto, y hagan seguimiento diario a este indicador.</p></div>`;
+  }
+
+  if (!estado.cumple && !metaNotificacionMostrada) {
+    metaNotificacionMostrada = true;
+    toast("Meta de datafono incumplida: " + estado.pct + "% (maximo " + META_DATAFONO_PCT + "%).", true);
+    if ("Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Cordova - Area de Caja", { body: "Meta de datafono incumplida: " + estado.pct + "% (maximo " + META_DATAFONO_PCT + "%). Revisa el Panel Gerencial." }); } catch (e) {}
+    }
+  }
+  if (estado.cumple) metaNotificacionMostrada = false;
+}
+
 function renderPanelGerencial() {
   const rows = filteredCierres();
   const alRows = filteredAlistamientos();
@@ -1653,16 +1856,21 @@ function renderPanelGerencial() {
   const turnosAlterno = rows.filter(r => r.datafono === "Alterno").length;
   const promDescuadre = rows.length ? totalDescuadre / rows.length : 0;
 
+  const pctTarjetas = totalVentas > 0 ? Math.round((totalTarjetas / totalVentas) * 100) : 0;
+  const metaSuperada = pctTarjetas > META_DATAFONO_PCT;
+
   document.getElementById("pg_kpis").innerHTML =
     kpiCard("Cierres en el rango", rows.length) +
     kpiCard("Ventas totales", fmtMoney(totalVentas), "Efectivo + transf. + tarjetas") +
     kpiCard("Descuadre acumulado", fmtMoney(totalDescuadre), conDescuadre + " cierres con diferencia", totalDescuadre>0) +
     kpiCard("Descuadre promedio / cierre", fmtMoney(promDescuadre)) +
     kpiCard("Cumplimiento facturacion", pctDian + "%", coincide + "/" + principales.length + " turnos con datafono principal", pctDian<100) +
+    kpiCard("Datafono / tarjetas", pctTarjetas + "%", "Meta: maximo " + META_DATAFONO_PCT + "% de las ventas", metaSuperada) +
     kpiCard("Turnos con datafono alterno", turnosAlterno) +
     kpiCard("Comprobantes de transferencia", compRows.length, "Fotos registradas en el rango");
 
   renderBolsasSeguridad();
+  renderMetaAlerta();
 
   // % uso por medio de pago (pie)
   if (window.Chart) {
