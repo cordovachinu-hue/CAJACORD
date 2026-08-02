@@ -559,7 +559,12 @@
             </div>
 
             <div class="form-grid">
-              <div class="field"><label id="lbl_gc">Gastos de caja <span class="req">*</span></label><input type="number" id="ci_gastosCaja" step="0.01" required></div>
+              <div class="field"><label id="lbl_ga">Reporte de gastos de Fudo (.xlsx)</label><input type="file" id="ci_gastosArchivo" accept=".xlsx"></div>
+              <div class="field locked"><label id="lbl_gc">Gastos de caja (automatico)</label><input type="number" id="ci_gastosCaja" step="0.01" readonly></div>
+            </div>
+            <label class="datafono-check"><input type="checkbox" id="ci_sinGastosHoy"> No hubo gastos hoy</label>
+            <div id="ci_gastosResumen" class="totals-row" style="margin:10px 0 0 0"></div>
+            <div class="form-grid">
               <div class="field"><label id="lbl_cg">Comprobantes de gastos</label><input type="file" id="ci_comprobantesGastos" accept="image/*" multiple></div>
               <div class="field"><label id="lbl_bs">Cuanto guardas en bolsa de seguridad <span class="req">*</span></label><input type="number" id="ci_bolsaSeguridad" step="0.01" required></div>
             </div>
@@ -914,7 +919,8 @@ document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control 
  ["lbl_tfp","invoice","Total facturado electronicamente (Datafono Principal) *"],
  ["lbl_anti","invoice","Anticipos (sistema)"],["lbl_bono","invoice","Bonos de regalo (sistema)"],
  ["lbl_cort","invoice","Cortesia (sistema)"],["lbl_cred","invoice","Credito (sistema)"],
- ["lbl_gc","coins","Gastos de caja *"],["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
+ ["lbl_ga","image","Reporte de gastos de Fudo (.xlsx)"],["lbl_gc","lock","Gastos de caja (automatico)"],
+ ["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
  ["lbl_compMesa","table","Mesa *"],
  ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
  ["lbl_compFoto","camera","Foto del comprobante *"],["lbl_compNota","invoice","Nota"]
@@ -1404,6 +1410,108 @@ function autoFillMontoInicial() {
   }
 }
 
+/* ============================= GASTOS DE CAJA: LECTURA DEL REPORTE DE FUDO (.xlsx) =============================
+   La persona de caja ya no digita el monto de gastos a mano: se lee del reporte que exporta
+   Fudo (hojas "Pagos" y/o "Gastos"), asi no puede poner el monto que quiera. Preferimos la hoja
+   "Pagos" filtrando Medio de pago = Efectivo y Cancelado != Si; si esa hoja no existe o no trae
+   filas, usamos la hoja "Gastos" completa (excluyendo las canceladas). */
+let gastosParsedItems = [];
+
+function leerTablaHoja(ws) {
+  if (!ws) return null;
+  let headerRowNum = null, headers = [];
+  for (let r = 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const vals = [];
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => { vals[colNumber - 1] = cell.value; });
+    if (vals.some(v => typeof v === "string" && /importe/i.test(v))) { headerRowNum = r; headers = vals; break; }
+  }
+  if (headerRowNum == null) return null;
+  const idx = {};
+  headers.forEach((h, i) => { if (typeof h === "string" && h.trim()) idx[h.trim().toLowerCase()] = i; });
+  const rows = [];
+  for (let r = headerRowNum + 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const obj = {};
+    Object.keys(idx).forEach(key => { obj[key] = row.getCell(idx[key] + 1).value; });
+    if (Object.values(obj).every(v => v == null || v === "")) continue;
+    rows.push(obj);
+  }
+  return rows;
+}
+
+async function parseGastosXlsx(file) {
+  const buffer = await file.arrayBuffer();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const findSheet = names => workbook.worksheets.find(w => names.some(n => w.name.toLowerCase() === n.toLowerCase())) || null;
+  const noCancelado = r => { const c = (r["cancelado"] || "").toString().trim().toLowerCase(); return c !== "si" && c !== "sí"; };
+
+  const pagosRows = leerTablaHoja(findSheet(["Pagos"]));
+  const gastosRows = leerTablaHoja(findSheet(["Gastos"]));
+
+  let total = 0, count = 0;
+  if (pagosRows && pagosRows.length) {
+    const efectivoRows = pagosRows.filter(r => noCancelado(r) && (r["medio de pago"] || "").toString().toLowerCase().includes("efectivo"));
+    total = efectivoRows.reduce((a, r) => a + (Number(r["importe"]) || 0), 0);
+    count = efectivoRows.length;
+  } else if (gastosRows && gastosRows.length) {
+    const validRows = gastosRows.filter(r => noCancelado(r) && r["importe"] != null);
+    total = validRows.reduce((a, r) => a + (Number(r["importe"]) || 0), 0);
+    count = validRows.length;
+  } else {
+    throw new Error("No se encontraron gastos en el archivo (se esperaba una hoja 'Pagos' o 'Gastos' con columna 'Importe').");
+  }
+
+  const items = (gastosRows || []).filter(r => noCancelado(r) && r["importe"] != null).map(r => ({
+    proveedor: (r["proveedor"] || "").toString(),
+    categoria: (r["categoría"] || r["categoria"] || "").toString(),
+    comentario: (r["comentario"] || "").toString(),
+    importe: Number(r["importe"]) || 0,
+  }));
+
+  return { total, count, items };
+}
+
+document.getElementById("ci_gastosArchivo").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  const resumenEl = document.getElementById("ci_gastosResumen");
+  const gastosCajaInput = document.getElementById("ci_gastosCaja");
+  if (!file) return;
+  document.getElementById("ci_sinGastosHoy").checked = false;
+  resumenEl.innerHTML = `<div class="total-card"><div class="label">Leyendo archivo...</div><div class="value">${icon("register",16)}</div></div>`;
+  try {
+    const parsed = await parseGastosXlsx(file);
+    gastosParsedItems = parsed.items;
+    gastosCajaInput.value = parsed.total;
+    gastosCajaInput.dispatchEvent(new Event("input"));
+    resumenEl.innerHTML =
+      `<div class="total-card"><div class="label">Gastos en efectivo leidos</div><div class="value">${parsed.count}</div></div>` +
+      `<div class="total-card"><div class="label">Total gastos de caja (automatico)</div><div class="value">${fmtMoney(parsed.total)}</div></div>`;
+  } catch (err) {
+    console.error(err);
+    gastosParsedItems = [];
+    gastosCajaInput.value = "";
+    gastosCajaInput.dispatchEvent(new Event("input"));
+    resumenEl.innerHTML = `<div class="total-card"><div class="label">Error leyendo el archivo</div><div class="value diff-bad">Revisa que sea el .xlsx que exporta Fudo</div></div>`;
+    toast("No se pudo leer el archivo de gastos. Revisa que sea el .xlsx de Fudo.", true);
+  }
+});
+document.getElementById("ci_sinGastosHoy").addEventListener("change", (e) => {
+  const gastosCajaInput = document.getElementById("ci_gastosCaja");
+  const resumenEl = document.getElementById("ci_gastosResumen");
+  if (e.target.checked) {
+    document.getElementById("ci_gastosArchivo").value = "";
+    gastosParsedItems = [];
+    gastosCajaInput.value = 0;
+    gastosCajaInput.dispatchEvent(new Event("input"));
+    resumenEl.innerHTML = "";
+  } else {
+    gastosCajaInput.value = "";
+    gastosCajaInput.dispatchEvent(new Event("input"));
+  }
+});
+
 /* ============================= DIFERENCIAS + STAT CARDS EN VIVO ============================= */
 function computeDiffs() {
   const num = id => Number(document.getElementById(id).value || 0);
@@ -1455,6 +1563,11 @@ document.getElementById("ci_fecha").value = todayStr();
 document.getElementById("formCierre").addEventListener("submit", async (e) => {
   e.preventDefault();
   const statusEl = document.getElementById("ci_status");
+  const sinGastosHoy = document.getElementById("ci_sinGastosHoy").checked;
+  if (!sinGastosHoy && document.getElementById("ci_gastosCaja").value === "") {
+    toast("Carga el reporte de gastos de Fudo, o marca 'No hubo gastos hoy'.", true);
+    return;
+  }
   try {
     statusEl.textContent = "Guardando...";
     const { dEfectivo, dTransf, dTarjetas, efectivoEsperado } = computeDiffs();
@@ -1486,7 +1599,10 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       bonosSistema: Number(document.getElementById("ci_bonosSistema").value || 0),
       cortesiaSistema: Number(document.getElementById("ci_cortesiaSistema").value || 0),
       creditoSistema: Number(document.getElementById("ci_creditoSistema").value || 0),
-      gastosCaja: Number(document.getElementById("ci_gastosCaja").value),
+      gastosCaja: Number(document.getElementById("ci_gastosCaja").value || 0),
+      gastosSinRegistros: sinGastosHoy,
+      gastosArchivoNombre: document.getElementById("ci_gastosArchivo").files[0] ? document.getElementById("ci_gastosArchivo").files[0].name : null,
+      gastosDetalle: gastosParsedItems,
       bolsaSeguridad: Number(document.getElementById("ci_bolsaSeguridad").value),
       bolsaRecibida: false,
       bolsaRecibidaEn: null,
@@ -1509,6 +1625,8 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
     ciSumaPrincipales.value = "";
     document.getElementById("ci_datafonoAutoNote").style.display = "none";
     document.getElementById("ci_montoInicialAutoNote").style.display = "none";
+    document.getElementById("ci_gastosResumen").innerHTML = "";
+    gastosParsedItems = [];
     document.getElementById("ci_fecha").value = todayStr();
     ciTarjetasContadas.value = "";
     if (typeof autoFillMontoInicial === "function") autoFillMontoInicial();
@@ -1791,10 +1909,12 @@ function openCierreDetail(r) {
       ${detailRow("Bonos de regalo (sistema)", fmtMoney(r.bonosSistema || 0))}
       ${detailRow("Cortesia (sistema)", fmtMoney(r.cortesiaSistema || 0))}
       ${detailRow("Credito (sistema)", fmtMoney(r.creditoSistema || 0))}
-      ${detailRow("Gastos de caja", fmtMoney(r.gastosCaja))}
+      ${detailRow("Gastos de caja", fmtMoney(r.gastosCaja) + (r.gastosSinRegistros ? " (sin gastos ese dia)" : ""))}
+      ${detailRow("Archivo de gastos cargado", r.gastosArchivoNombre || (r.gastosSinRegistros ? "N/A (sin gastos)" : "N/A"))}
       ${detailRow("Bolsa de seguridad", fmtMoney(r.bolsaSeguridad))}
     </div>
     ${denomRows ? `<div class="table-wrap" style="max-height:200px"><table><thead><tr><th>Denominacion</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>${denomRows}</tbody></table></div>` : ""}
+    ${(r.gastosDetalle && r.gastosDetalle.length) ? `<div class="table-wrap" style="max-height:200px;margin-top:10px"><table><thead><tr><th>Proveedor</th><th>Categoria</th><th>Comentario</th><th>Importe</th></tr></thead><tbody>${r.gastosDetalle.map(g => `<tr><td>${g.proveedor||"-"}</td><td>${g.categoria||"-"}</td><td>${g.comentario||"-"}</td><td>${fmtMoney(g.importe)}</td></tr>`).join("")}</tbody></table></div>` : ""}
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
     ${thumbRow("Comprobantes de gastos", r.comprobantesGastos)}
@@ -2155,7 +2275,8 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
     { header: "Datafono P1", key: "dp1" }, { header: "Datafono P2", key: "dp2" }, { header: "Datafono Alterno", key: "da" },
     { header: "Suma Datafono Principal", key: "sp" }, { header: "Facturado Principal", key: "fp" }, { header: "Verif. Principal", key: "vp" },
     { header: "Anticipos", key: "anti" }, { header: "Bonos regalo", key: "bono" }, { header: "Cortesia", key: "cort" }, { header: "Credito", key: "cred" },
-    { header: "Gastos caja", key: "gastos" }, { header: "Bolsa seguridad", key: "bolsa" }, { header: "Observaciones", key: "obs" },
+    { header: "Gastos caja", key: "gastos" }, { header: "Archivo gastos", key: "garch" }, { header: "Items gastos", key: "gitems" },
+    { header: "Bolsa seguridad", key: "bolsa" }, { header: "Observaciones", key: "obs" },
   ];
   const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), mi: r.montoInicial,
     es: r.efectivoSistema, ec: r.efectivoContado, ee: r.efectivoEsperado, de: r.diferenciaEfectivo,
@@ -2164,7 +2285,8 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
     dp1: r.datafonoP1, dp2: r.datafonoP2, da: r.datafonoAlterno,
     sp: pr.suma, fp: pr.facturado, vp: pr.verif,
     anti: r.anticiposSistema, bono: r.bonosSistema, cort: r.cortesiaSistema, cred: r.creditoSistema,
-    gastos: r.gastosCaja, bolsa: r.bolsaSeguridad, obs: r.observaciones }; });
+    gastos: r.gastosCaja, garch: r.gastosArchivoNombre || (r.gastosSinRegistros ? "Sin gastos" : ""), gitems: (r.gastosDetalle||[]).length,
+    bolsa: r.bolsaSeguridad, obs: r.observaciones }; });
   exportToExcel(rows, columns, "cierres_caja.xlsx");
 });
 </script>
