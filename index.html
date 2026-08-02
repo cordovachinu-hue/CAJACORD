@@ -335,6 +335,13 @@
     <span class="modal-close" id="pinModalClose"></span>
     <h3 id="pinModalTitle">Acceso</h3>
     <p class="muted">Ingresa el codigo para continuar.</p>
+    <div id="pinModalSedeWrap" style="text-align:left;margin-top:6px">
+      <label style="display:block;font-size:12px;font-weight:700;color:var(--espresso);margin-bottom:4px">Sede</label>
+      <select id="pinModalSede" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:14px">
+        <option value="monteria">Monteria</option>
+        <option value="chinu">Chinu</option>
+      </select>
+    </div>
     <input type="password" id="pinModalInput" placeholder="Codigo" inputmode="numeric" maxlength="14" style="text-align:center;font-size:16px;letter-spacing:4px;margin-top:10px">
     <div id="pinModalError" style="color:#c0392b;font-size:13px;margin-top:10px;min-height:14px;"></div>
     <button id="pinModalBtn" class="btn-primary" style="width:100%;margin-top:10px;justify-content:center">Entrar</button>
@@ -476,10 +483,10 @@
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>Responsable</th><th>Datafono</th><th>Base</th><th>Items ok</th><th>Listo p/ servicio</th><th></th>
+                <th>Fecha</th><th>Sede</th><th>Responsable</th><th>Datafono</th><th>Base</th><th>Items ok</th><th>Listo p/ servicio</th><th></th>
               </tr>
             </thead>
-            <tbody id="al_tbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <tbody id="al_tbody"><tr><td colspan="8"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -487,7 +494,7 @@
 
     <!-- ===================== VISTA: CIERRE DE CAJA ===================== -->
     <div id="view-cierre" class="view" style="display:none">
-      <h2 class="page-title">Cierre de Caja Cordova Monteria</h2>
+      <h2 class="page-title" id="cierrePageTitle">Cierre de Caja Cordova</h2>
       <p class="subtitle">Registro y conciliacion final del arqueo de caja.</p>
 
       <div class="stat-row no-print" id="statRow"></div>
@@ -612,10 +619,10 @@
           <table>
             <thead>
               <tr>
-                <th>Fecha</th><th>Responsable</th><th>Datafono</th><th>Verif. facturacion</th><th>Efectivo (dif)</th><th>Transf. (dif)</th><th>Tarjetas (dif)</th><th>Gastos</th><th>Bolsa seguridad</th><th></th>
+                <th>Fecha</th><th>Sede</th><th>Responsable</th><th>Datafono</th><th>Verif. facturacion</th><th>Efectivo (dif)</th><th>Transf. (dif)</th><th>Tarjetas (dif)</th><th>Gastos</th><th>Bolsa seguridad</th><th></th>
               </tr>
             </thead>
-            <tbody id="ci_tbody"><tr><td colspan="10"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <tbody id="ci_tbody"><tr><td colspan="11"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -664,8 +671,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Hora</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th id="th_lecturaIA">Lectura IA</th><th>Nota</th><th>Foto</th></tr></thead>
-            <tbody id="comp_tbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <thead><tr><th>Hora</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th id="th_lecturaIA">Lectura IA</th><th>Nota</th><th>Foto</th></tr></thead>
+            <tbody id="comp_tbody"><tr><td colspan="8"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -682,6 +689,13 @@
         <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end">
           <div class="field"><label>Desde</label><input type="date" id="pg_from"></div>
           <div class="field"><label>Hasta</label><input type="date" id="pg_to"></div>
+          <div class="field"><label>Sede</label>
+            <select id="pg_sede">
+              <option value="">Todas (consolidado)</option>
+              <option value="monteria">Monteria</option>
+              <option value="chinu">Chinu</option>
+            </select>
+          </div>
           <div class="field" style="margin-bottom:0"><button class="btn-primary" id="pg_apply" style="width:100%;justify-content:center">Aplicar filtro</button></div>
         </div>
       </div>
@@ -806,11 +820,30 @@ document.getElementById("logoHome").src = LOGO_SRC;
 document.getElementById("logoSidebar").src = LOGO_SRC;
 
 const META_DATAFONO_PCT = 35; // meta: pagos con datafono/tarjetas no deben superar este % de las ventas
+/* Gerencia ve el consolidado de ambas sedes con un solo PIN. Caja y Mesero eligen su sede
+   al entrar y usan el PIN de esa sede. */
 const PIN_GERENTE = "200810143037";
-const PIN_CAJA = "5050";
-const PIN_MESERO = "4567";
+const PINS_POR_SEDE = {
+  monteria: { caja: "5050", mesero: "4567" },
+  chinu: { caja: "2029", mesero: "4545" },
+};
+const SEDE_LABELS = { monteria: "Monteria", chinu: "Chinu" };
+// Los registros creados antes de activar multi-sede no tienen campo "sede" guardado.
+// Como la app solo operaba en Monteria antes de esto, esos registros viejos se tratan como Monteria
+// (asi nunca desaparecen de los historiales ni de los filtros por sede).
+function sedeOf(r) { return r.sede || "monteria"; }
+const CAJEROS_POR_SEDE = {
+  monteria: ["Camilo", "Jose", "Kiara", "Angelica"],
+  chinu: ["Luisa", "Astrid", "Joenis", "Leidis"],
+};
+const MESEROS_POR_SEDE = {
+  monteria: ["Reinaldo", "Marianela", "Andi", "Lina", "Mairo", "Pedro", "Misael", "Auxiliar 1", "Auxiliar 2"],
+  chinu: ["Luisa", "Astrid", "Leidis", "Joenis", "Sandy", "Roger"],
+};
+const MESAS_POR_SEDE = { monteria: 80, chinu: 40 };
 const ALARM_HOUR = 11, ALARM_MINUTE = 20;
 let currentRole = null;
+let currentSede = null; // "monteria" | "chinu" | null (null para gerente, que ve ambas sedes)
 
 /* ============================= ICONOS ============================= */
 const RAW_ICONS = {
@@ -946,7 +979,6 @@ document.getElementById("readyNo").innerHTML = icon("alert",20) + "No, hay pendi
 const homeScreen = document.getElementById("homeScreen");
 const pinModal = document.getElementById("pinModal");
 const layout = document.getElementById("layout");
-const ROLE_PINS = { caja: PIN_CAJA, mesero: PIN_MESERO, gerente: PIN_GERENTE };
 const ROLE_TITLES = { caja: "Acceso Caja", mesero: "Acceso Mesero", gerente: "Acceso Gerente" };
 let pendingRole = null;
 
@@ -962,6 +994,7 @@ document.querySelectorAll(".home-card").forEach(card => {
     document.getElementById("pinModalTitle").textContent = ROLE_TITLES[pendingRole];
     document.getElementById("pinModalInput").value = "";
     document.getElementById("pinModalError").textContent = "";
+    document.getElementById("pinModalSedeWrap").style.display = pendingRole === "gerente" ? "none" : "block";
     pinModal.classList.add("show");
     setTimeout(() => document.getElementById("pinModalInput").focus(), 50);
   });
@@ -972,11 +1005,15 @@ pinModal.addEventListener("click", (e) => { if (e.target === pinModal) pinModal.
 function tryEnterRole() {
   if (!pendingRole) return;
   const val = document.getElementById("pinModalInput").value.trim();
-  if (val === ROLE_PINS[pendingRole]) {
+  const sedeSel = pendingRole === "gerente" ? null : document.getElementById("pinModalSede").value;
+  const correctPin = pendingRole === "gerente" ? PIN_GERENTE : PINS_POR_SEDE[sedeSel][pendingRole];
+  if (val === correctPin) {
     currentRole = pendingRole;
+    currentSede = sedeSel; // null para gerente: ve el consolidado de ambas sedes
     pinModal.classList.remove("show");
     homeScreen.style.display = "none";
     layout.style.display = "flex";
+    initSedeSelects();
     applyRoleUI();
     startListeners();
   } else {
@@ -1013,10 +1050,13 @@ function applyRoleUI() {
   const labels = { gerente: "Gerente", caja: "Caja", mesero: "Mesero" };
   const initials = { gerente: "GR", caja: "CJ", mesero: "ME" };
   const names = { gerente: "Gerencia", caja: "Cajero", mesero: "Mesero" };
-  document.getElementById("roleBadge").textContent = labels[currentRole];
+  const sedeTxt = currentSede ? " - " + SEDE_LABELS[currentSede] : " - Ambas sedes";
+  document.getElementById("roleBadge").textContent = labels[currentRole] + sedeTxt;
   document.getElementById("userAvatar").textContent = initials[currentRole];
-  document.getElementById("userName").textContent = names[currentRole];
+  document.getElementById("userName").textContent = names[currentRole] + (currentSede ? " (" + SEDE_LABELS[currentSede] + ")" : "");
   document.getElementById("userRoleTxt").textContent = labels[currentRole];
+  const cierreTitle = document.getElementById("cierrePageTitle");
+  if (cierreTitle) cierreTitle.textContent = "Cierre de Caja Cordova" + (currentSede ? " " + SEDE_LABELS[currentSede] : "");
   const firstAllowed = document.querySelector(".nav-item[data-view].role-" + currentRole);
   if (firstAllowed) firstAllowed.click();
 }
@@ -1185,6 +1225,7 @@ document.getElementById("formAlistamiento").addEventListener("submit", async (e)
     listoParaServicio: items["al_i21"],
     observaciones: document.getElementById("al_observaciones").value.trim(),
     fecha: todayStr(),
+    sede: currentSede,
     rol: currentRole,
     creadoPor: auth.currentUser ? auth.currentUser.uid : null,
     creadoEn: serverTimestamp(),
@@ -1610,6 +1651,7 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       observaciones: document.getElementById("ci_observaciones").value.trim(),
       comprobanteDatafono: await filesToBase64(document.getElementById("ci_comprobanteDatafono")),
       comprobantesGastos: await filesToBase64(document.getElementById("ci_comprobantesGastos")),
+      sede: currentSede,
       rol: currentRole,
       creadoPor: auth.currentUser ? auth.currentUser.uid : null,
       creadoEn: serverTimestamp(),
@@ -1673,29 +1715,36 @@ function startListeners() {
   });
 }
 
-const CAJEROS = ["Camilo", "Jose", "Kiara", "Angelica"];
-const MESEROS = ["Reinaldo", "Marianela", "Andi", "Lina", "Mairo", "Pedro", "Misael", "Auxiliar 1", "Auxiliar 2"];
+/* Roster por sede: cajeros/meseros y cantidad de mesas para Comprobantes.
+   Gerencia (currentSede === null, ve el consolidado de ambas sedes) usa la union de las
+   dos listas y el mayor numero de mesas, por si necesita revisar el formulario. */
+function cajerosSede() { return currentSede ? CAJEROS_POR_SEDE[currentSede] : [...new Set([...CAJEROS_POR_SEDE.monteria, ...CAJEROS_POR_SEDE.chinu])]; }
+function meserosSede() { return currentSede ? MESEROS_POR_SEDE[currentSede] : [...new Set([...MESEROS_POR_SEDE.monteria, ...MESEROS_POR_SEDE.chinu])]; }
+function mesasSede() { return currentSede ? MESAS_POR_SEDE[currentSede] : Math.max(...Object.values(MESAS_POR_SEDE)); }
 
-/* Comprobantes: selector de mesa (1 a 80) y selector de mesero/cajero */
-(function initComprobanteSelects() {
+/* Comprobantes: selector de mesa y selector de mesero/cajero, segun la sede con la que se entro.
+   Se vuelve a llamar cada vez que alguien inicia sesion (tryEnterRole), para que quede con el
+   roster correcto de su sede. */
+function initSedeSelects() {
   const mesaSel = document.getElementById("comp_mesa");
+  if (!mesaSel) return;
   let mesaOpts = '<option value="">Seleccionar...</option>';
-  for (let i = 1; i <= 80; i++) mesaOpts += `<option value="${i}">Mesa ${i}</option>`;
+  for (let i = 1; i <= mesasSede(); i++) mesaOpts += `<option value="${i}">Mesa ${i}</option>`;
   mesaSel.innerHTML = mesaOpts;
 
   const nombreSel = document.getElementById("comp_nombre");
   nombreSel.innerHTML = '<option value="">Seleccionar...</option>' +
-    [...MESEROS, ...CAJEROS].map(n => `<option value="${n}">${n}</option>`).join("");
-})();
+    [...meserosSede(), ...cajerosSede()].map(n => `<option value="${n}">${n}</option>`).join("");
+}
 
 function updateResponsablesList() {
-  const cajerosNames = new Set(CAJEROS);
-  alistamientosCache.forEach(r => r.responsable && cajerosNames.add(r.responsable));
-  cierresCache.forEach(r => r.responsable && cajerosNames.add(r.responsable));
+  const cajerosNames = new Set(cajerosSede());
+  alistamientosCache.forEach(r => r.responsable && (!currentSede || sedeOf(r) === currentSede) && cajerosNames.add(r.responsable));
+  cierresCache.forEach(r => r.responsable && (!currentSede || sedeOf(r) === currentSede) && cajerosNames.add(r.responsable));
   document.getElementById("cajerosList").innerHTML = Array.from(cajerosNames).map(n => `<option value="${n}">`).join("");
 
-  const personalNames = new Set([...CAJEROS, ...MESEROS]);
-  comprobantesCache.forEach(r => r.mesero && personalNames.add(r.mesero));
+  const personalNames = new Set([...cajerosSede(), ...meserosSede()]);
+  comprobantesCache.forEach(r => r.mesero && (!currentSede || sedeOf(r) === currentSede) && personalNames.add(r.mesero));
   document.getElementById("personalList").innerHTML = Array.from(personalNames).map(n => `<option value="${n}">`).join("");
 }
 updateResponsablesList();
@@ -1712,13 +1761,14 @@ function montoComprobante(r) {
 }
 function renderComprobantesTable() {
   const tbody = document.getElementById("comp_tbody");
-  const todays = comprobantesCache.filter(r => r.fecha === todayStr());
+  let todays = comprobantesCache.filter(r => r.fecha === todayStr());
+  if (currentRole !== "gerente" && currentSede) todays = todays.filter(r => sedeOf(r) === currentSede);
   if (!todays.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
     return;
   }
   tbody.innerHTML = todays.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td class="td-lecturaIA">${legiblePill(r)}</td><td>${r.nota || "-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td class="td-lecturaIA">${legiblePill(r)}</td><td>${r.nota || "-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="window.open(this.src)">` : "-"}</td>
     </tr>`).join("");
   if (!IA_COMPROBANTES_ACTIVA) {
@@ -1750,6 +1800,7 @@ document.getElementById("comp_submitBtn").addEventListener("click", async () => 
       nota: document.getElementById("comp_nota").value.trim(),
       foto: fotoArr[0] || null,
       fecha: todayStr(),
+      sede: currentSede,
       rol: currentRole,
       legibleIA: lectura ? lectura.legible : null,
       montoIA: lectura ? lectura.monto : null,
@@ -1837,18 +1888,20 @@ function principalesResumen(r) {
 
 function renderAlistamientoTable() {
   const tbody = document.getElementById("al_tbody");
-  if (!alistamientosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aun no hay alistamientos registrados.</div></td></tr>';
+  let rows = alistamientosCache.map((r, i) => ({ r, i }));
+  if (currentRole !== "gerente" && currentSede) rows = rows.filter(({r}) => sedeOf(r) === currentSede);
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Aun no hay alistamientos registrados.</div></td></tr>';
     return;
   }
-  tbody.innerHTML = alistamientosCache.map((r, i) => {
+  tbody.innerHTML = rows.map(({r, i}) => {
     const totalItems = Object.keys(r.items || {}).length;
     const okItems = totalItems - (r.itemsNoCumple || 0);
     const pill = (r.listoParaServicio === "Cumple")
       ? '<span class="pill ok">' + icon("checkc",12) + 'Listo</span>'
       : '<span class="pill warn">' + icon("alert",12) + 'Revisar</span>';
     return `<tr class="clickable" data-al="${i}">
-      <td>${fmtDate(r.creadoEn)}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(alistamientoDatafonosList(r))}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(alistamientoDatafonosList(r))}</td>
       <td>${fmtMoney(r.baseValor)}</td><td>${okItems}/${totalItems}</td><td>${pill}</td>
       <td>${icon("eye",16)}</td>
     </tr>`;
@@ -1858,13 +1911,15 @@ function renderAlistamientoTable() {
 
 function renderCierreTable() {
   const tbody = document.getElementById("ci_tbody");
-  if (!cierresCache.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state">Aun no hay cierres registrados.</div></td></tr>';
+  let rows = cierresCache.map((r, i) => ({ r, i }));
+  if (currentRole !== "gerente" && currentSede) rows = rows.filter(({r}) => sedeOf(r) === currentSede);
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state">Aun no hay cierres registrados.</div></td></tr>';
     return;
   }
   const diffSpan = v => `<span class="${(v||0) === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(v)}</span>`;
-  tbody.innerHTML = cierresCache.map((r, i) => `<tr class="clickable" data-ci="${i}">
-      <td>${r.fecha || "-"}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td><td>${verifResumenPill(r)}</td>
+  tbody.innerHTML = rows.map(({r, i}) => `<tr class="clickable" data-ci="${i}">
+      <td>${r.fecha || "-"}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td><td>${verifResumenPill(r)}</td>
       <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
       <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
       <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
@@ -1886,7 +1941,7 @@ function thumbRow(label, arr) {
 
 function openCierreDetail(r) {
   document.getElementById("detailTitle").innerHTML = icon("register",18) + " Cierre de caja";
-  document.getElementById("detailSub").textContent = (r.fecha || "-") + " · " + (r.responsable || "-");
+  document.getElementById("detailSub").textContent = (r.fecha || "-") + " · " + SEDE_LABELS[sedeOf(r)] + " · " + (r.responsable || "-");
   const denomRows = r.denominaciones ? Object.entries(r.denominaciones).filter(([,c]) => c>0)
     .map(([d,c]) => `<tr><td>${fmtMoney(d)}</td><td>${c}</td><td>${fmtMoney(d*c)}</td></tr>`).join("") : "";
   document.getElementById("detailBody").innerHTML = `
@@ -1928,7 +1983,7 @@ CHECK_LABELS["al_i21"] = "Area lista para iniciar el servicio";
 
 function openAlistamientoDetail(r) {
   document.getElementById("detailTitle").innerHTML = icon("book",18) + " Alistamiento inicial";
-  document.getElementById("detailSub").textContent = fmtDate(r.creadoEn) + " · " + (r.responsable || "-");
+  document.getElementById("detailSub").textContent = fmtDate(r.creadoEn) + " · " + SEDE_LABELS[sedeOf(r)] + " · " + (r.responsable || "-");
   const itemsHtml = Object.entries(r.items || {}).map(([id, val]) => {
     const p = val === "Cumple" ? '<span class="pill ok">Si</span>' : val === "No cumple" ? '<span class="pill warn">No</span>' : '<span class="pill off">N/A</span>';
     return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span>${CHECK_LABELS[id]||id}</span>${p}</div>`;
@@ -1997,21 +2052,26 @@ let chartMedios = null, chartDescuadre = null, chartTendencia = null;
 document.getElementById("pg_to").value = todayStr();
 document.getElementById("pg_from").value = (() => { const d = new Date(); d.setDate(d.getDate()-29); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; })();
 document.getElementById("pg_apply").addEventListener("click", renderPanelGerencial);
+document.getElementById("pg_sede").addEventListener("change", renderPanelGerencial);
 
+function pgSedeVal() { const el = document.getElementById("pg_sede"); return el ? el.value : ""; }
 function filteredCierres() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
-  return cierresCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to));
+  const sede = pgSedeVal();
+  return cierresCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sede || sedeOf(r) === sede));
 }
 function filteredAlistamientos() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
-  return alistamientosCache.filter(r => { const f = r.fecha || dateKeyFromTs(r.creadoEn); return f && (!from || f >= from) && (!to || f <= to); });
+  const sede = pgSedeVal();
+  return alistamientosCache.filter(r => { const f = r.fecha || dateKeyFromTs(r.creadoEn); return f && (!from || f >= from) && (!to || f <= to) && (!sede || sedeOf(r) === sede); });
 }
 function filteredComprobantes() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
-  return comprobantesCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to));
+  const sede = pgSedeVal();
+  return comprobantesCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sede || sedeOf(r) === sede));
 }
 
 function kpiCard(label, value, sub, accent) {
@@ -2259,15 +2319,15 @@ async function exportToExcel(rows, columns, filename) {
 }
 document.getElementById("btnExportAlistamiento").addEventListener("click", () => {
   const columns = [
-    { header: "Fecha", key: "fecha" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos en uso", key: "datafonos" },
+    { header: "Fecha", key: "fecha" }, { header: "Sede", key: "sede" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos en uso", key: "datafonos" },
     { header: "Base", key: "base" }, { header: "Items No Cumple", key: "noCumple" }, { header: "Listo p/ servicio", key: "listo" }, { header: "Observaciones", key: "obs" },
   ];
-  const rows = alistamientosCache.map(r => ({ fecha: fmtDate(r.creadoEn), responsable: r.responsable, datafonos: alistamientoDatafonosList(r).join(" + "), base: r.baseValor, noCumple: r.itemsNoCumple, listo: r.listoParaServicio, obs: r.observaciones }));
+  const rows = alistamientosCache.map(r => ({ fecha: fmtDate(r.creadoEn), sede: SEDE_LABELS[sedeOf(r)], responsable: r.responsable, datafonos: alistamientoDatafonosList(r).join(" + "), base: r.baseValor, noCumple: r.itemsNoCumple, listo: r.listoParaServicio, obs: r.observaciones }));
   exportToExcel(rows, columns, "alistamientos_caja.xlsx");
 });
 document.getElementById("btnExportCierre").addEventListener("click", () => {
   const columns = [
-    { header: "Fecha", key: "fecha" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos con movimiento", key: "datafonos" },
+    { header: "Fecha", key: "fecha" }, { header: "Sede", key: "sede" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos con movimiento", key: "datafonos" },
     { header: "Monto inicial", key: "mi" },
     { header: "Efectivo sistema", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Efectivo esperado", key: "ee" }, { header: "Dif. efectivo", key: "de" },
     { header: "Transf. sistema", key: "ts" }, { header: "Transf. contadas", key: "tc" }, { header: "Dif. transf.", key: "dt" },
@@ -2278,7 +2338,7 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
     { header: "Gastos caja", key: "gastos" }, { header: "Archivo gastos", key: "garch" }, { header: "Items gastos", key: "gitems" },
     { header: "Bolsa seguridad", key: "bolsa" }, { header: "Observaciones", key: "obs" },
   ];
-  const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), mi: r.montoInicial,
+  const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, sede: SEDE_LABELS[sedeOf(r)], responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), mi: r.montoInicial,
     es: r.efectivoSistema, ec: r.efectivoContado, ee: r.efectivoEsperado, de: r.diferenciaEfectivo,
     ts: r.transferenciasSistema, tc: r.transferenciasContadas, dt: r.diferenciaTransferencias,
     tjs: r.tarjetasSistema, tjc: r.tarjetasContadas, dtj: r.diferenciaTarjetas,
