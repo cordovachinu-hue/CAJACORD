@@ -512,9 +512,11 @@
             <div class="card-head" id="head_concil"></div>
 
             <div class="form-grid">
+              <div class="field"><label id="lbl_mi">Monto inicial (base de caja) <span class="req">*</span></label><input type="number" id="ci_montoInicial" step="0.01" required></div>
               <div class="field"><label id="lbl_es">Efectivo sistema <span class="req">*</span></label><input type="number" id="ci_efectivoSistema" step="0.01" required></div>
               <div class="field locked"><label id="lbl_ec">Efectivo contado (automatico)</label><input type="number" id="ci_efectivoContado" step="0.01" readonly></div>
             </div>
+            <small class="muted" id="ci_montoInicialAutoNote" style="display:none"></small>
             <div class="form-grid">
               <div class="field"><label id="lbl_ts">Transferencias sistema <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
               <div class="field"><label id="lbl_tc">Transferencias contadas <span class="req">*</span></label><input type="number" id="ci_transfContadas" step="0.01" required></div>
@@ -544,6 +546,16 @@
                 <div class="field"><label id="lbl_tfp">Total facturado electronicamente (Datafono Principal) <span class="req">*</span></label><input type="number" id="ci_facturadoPrincipales" step="0.01"></div>
               </div>
               <div class="totals-row" id="ci_diffPrincipalesBlock"></div>
+            </div>
+
+            <p class="muted" id="otrosPagosNote"></p>
+            <div class="form-grid">
+              <div class="field"><label id="lbl_anti">Anticipos (sistema)</label><input type="number" id="ci_anticiposSistema" step="0.01"></div>
+              <div class="field"><label id="lbl_bono">Bonos de regalo (sistema)</label><input type="number" id="ci_bonosSistema" step="0.01"></div>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label id="lbl_cort">Cortesia (sistema)</label><input type="number" id="ci_cortesiaSistema" step="0.01"></div>
+              <div class="field"><label id="lbl_cred">Credito (sistema)</label><input type="number" id="ci_creditoSistema" step="0.01"></div>
             </div>
 
             <div class="form-grid">
@@ -893,12 +905,15 @@ document.getElementById("head_trend").innerHTML = icon("trend",17) + "Tendencia 
 document.getElementById("head_rank").innerHTML = icon("users",17) + "Responsables con mas descuadres";
 document.getElementById("head_cumpl").innerHTML = icon("checkc",17) + "Cumplimiento operativo";
 document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control de bolsas de seguridad";
-[["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],
+[["lbl_mi","money","Monto inicial (base de caja) *"],
+ ["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],
  ["lbl_ts","swap","Transferencias sistema *"],["lbl_tc","swap","Transferencias contadas *"],
  ["lbl_tjs","card","Tarjetas sistema *"],["lbl_tjc","lock","Tarjetas contadas (automatico)"],["lbl_cdf","image","Comprobante de cierre de datafono"],
  ["lbl_dp1","card","Datafono 1 Principal"],["lbl_dp2","card","Datafono 2 Principal"],["lbl_da","card","Datafono 3 Alterno"],
  ["lbl_sp","lock","Total Datafono(s) Principal(es) (automatico)"],
  ["lbl_tfp","invoice","Total facturado electronicamente (Datafono Principal) *"],
+ ["lbl_anti","invoice","Anticipos (sistema)"],["lbl_bono","invoice","Bonos de regalo (sistema)"],
+ ["lbl_cort","invoice","Cortesia (sistema)"],["lbl_cred","invoice","Credito (sistema)"],
  ["lbl_gc","coins","Gastos de caja *"],["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
  ["lbl_compMesa","table","Mesa *"],
  ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
@@ -912,6 +927,7 @@ document.getElementById("head_comp").innerHTML = icon("camera",17) + "Nueva foto
 document.getElementById("comp_submitBtn").innerHTML = icon("checkc",17) + "Guardar comprobante";
 document.getElementById("navIcon4").innerHTML = icon("camera");
 document.getElementById("principalesNote").innerHTML = icon("shield",14) + " Los Datafonos Principales facturan electronicamente todo lo que entra en ellos. La suma de lo contado en Datafono 1 y 2 Principal aparece automaticamente; solo digita el total facturado electronicamente y la verificacion se calcula sola (si la diferencia da $0, coincide).";
+document.getElementById("otrosPagosNote").innerHTML = icon("shield",14) + " Copia estos valores del reporte del sistema POS si aplican ese dia (quedan como referencia para el cuadre total y para cuando ingreses el cierre al POS).";
 document.getElementById("al_submitBtn").innerHTML = icon("checkc",17) + "Completar apertura de caja";
 document.getElementById("ci_submitBtn").innerHTML = icon("checkc",17) + "Enviar cierre";
 document.querySelectorAll('[onclick="window.print()"]').forEach(b => b.innerHTML = icon("printer",15) + "Imprimir");
@@ -1018,6 +1034,7 @@ navItems.forEach(item => {
     document.getElementById("crumbSub").textContent = c[1];
     if (item.dataset.view === "panel") renderPanelGerencial();
     if (item.dataset.view === "cierre" && typeof autoFillDatafonoCierre === "function") autoFillDatafonoCierre();
+    if (item.dataset.view === "cierre" && typeof autoFillMontoInicial === "function") autoFillMontoInicial();
     closeMobileSidebar();
   });
 });
@@ -1368,17 +1385,34 @@ function autoFillDatafonoCierre() {
   }
 }
 
+/* Autorrelleno: el monto inicial (base de caja) del Cierre debe ser el mismo con el que se
+   abrio la caja esa mañana en Alistamiento. Se autocompleta pero el cajero puede corregirlo
+   si algo cambio durante el turno. */
+function autoFillMontoInicial() {
+  const campo = document.getElementById("ci_montoInicial");
+  const nota = document.getElementById("ci_montoInicialAutoNote");
+  if (!campo || !nota) return;
+  const hoy = todayStr();
+  const al = alistamientosCache.find(r => (r.fecha || dateKeyFromTs(r.creadoEn)) === hoy);
+  if (al && al.baseValor != null && !campo.value) {
+    campo.value = al.baseValor;
+    campo.dispatchEvent(new Event("input"));
+    nota.style.display = "block";
+    nota.innerHTML = icon("checkc", 12) + " Se tomo del Alistamiento de hoy (" + fmtMoney(al.baseValor) + "). Ajustalo si la base cambio durante el turno.";
+  } else {
+    nota.style.display = "none";
+  }
+}
+
 /* ============================= DIFERENCIAS + STAT CARDS EN VIVO ============================= */
 function computeDiffs() {
   const num = id => Number(document.getElementById(id).value || 0);
-  /* El gasto de caja es una salida de efectivo normal y ya esperada: no debe hacer ver
-     como si hubiera un descuadre. La "Diferencia efectivo" compara el conteo fisico
-     contra lo que dice el sistema en ventas de efectivo (sin restar gastos). El total
-     en efectivo (ingresos - gastos) queda solo como dato informativo, por ejemplo para
-     saber cuanto guardar en la bolsa de seguridad. */
-  const efectivoEsperado = num("ci_efectivoSistema") - num("ci_gastosCaja");
+  /* El efectivo esperado al cierre es la base con la que se abrio la caja, mas lo vendido
+     en efectivo segun el sistema, menos los gastos que salieron en efectivo del cajon
+     durante el turno. Eso es lo que se compara contra el conteo fisico. */
+  const efectivoEsperado = num("ci_montoInicial") + num("ci_efectivoSistema") - num("ci_gastosCaja");
   return {
-    dEfectivo: num("ci_efectivoContado") - num("ci_efectivoSistema"),
+    dEfectivo: num("ci_efectivoContado") - efectivoEsperado,
     dTransf: num("ci_transfContadas") - num("ci_transfSistema"),
     dTarjetas: num("ci_tarjetasContadas") - num("ci_tarjetasSistema"),
     efectivoEsperado,
@@ -1389,7 +1423,7 @@ function renderLiveDiff() {
   const card = (label, val) => `<div class="total-card"><div class="label">${label}</div>
     <div class="value ${val === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(val)}</div></div>`;
   document.getElementById("ci_liveDiff").innerHTML =
-    `<div class="total-card"><div class="label">Total en efectivo (ingresos - gastos)</div><div class="value">${fmtMoney(efectivoEsperado)}</div></div>` +
+    `<div class="total-card"><div class="label">Efectivo esperado (base + ventas - gastos)</div><div class="value">${fmtMoney(efectivoEsperado)}</div></div>` +
     card("Diferencia efectivo", dEfectivo) + card("Diferencia transferencias", dTransf) + card("Diferencia tarjetas", dTarjetas);
 }
 function renderStatCards() {
@@ -1411,7 +1445,7 @@ function renderStatCards() {
     stat("card", "bg-wood", "Tarjetas / Datafono", fmtMoney(num("ci_tarjetasContadas")), "Datafono: " + df) +
     stat("scale", total===0?"bg-green":"bg-red", "Diferencia total", fmtMoney(total), total===0?"Cuadrado":"Por conciliar");
 }
-["ci_efectivoSistema","ci_gastosCaja","ci_transfSistema","ci_transfContadas","ci_tarjetasSistema","ci_tarjetasContadas"]
+["ci_montoInicial","ci_efectivoSistema","ci_gastosCaja","ci_transfSistema","ci_transfContadas","ci_tarjetasSistema","ci_tarjetasContadas"]
   .forEach(id => document.getElementById(id).addEventListener("input", () => { renderLiveDiff(); renderStatCards(); }));
 recomputeDenominaciones();
 renderStatCards();
@@ -1430,6 +1464,7 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       responsable: document.getElementById("ci_responsable").value.trim(),
       fecha: document.getElementById("ci_fecha").value,
       denominaciones: getDenominacionesData(),
+      montoInicial: Number(document.getElementById("ci_montoInicial").value || 0),
       efectivoSistema: Number(document.getElementById("ci_efectivoSistema").value),
       efectivoContado: Number(document.getElementById("ci_efectivoContado").value),
       efectivoEsperado: efectivoEsperado,
@@ -1447,6 +1482,10 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       facturadoPrincipales: (p1Activo || p2Activo) ? Number(document.getElementById("ci_facturadoPrincipales").value || 0) : null,
       verifPrincipales: (p1Activo || p2Activo) ? verifPrincipalesAuto() : null,
       diferenciaPrincipales: (p1Activo || p2Activo) ? computeDiffPrincipales() : null,
+      anticiposSistema: Number(document.getElementById("ci_anticiposSistema").value || 0),
+      bonosSistema: Number(document.getElementById("ci_bonosSistema").value || 0),
+      cortesiaSistema: Number(document.getElementById("ci_cortesiaSistema").value || 0),
+      creditoSistema: Number(document.getElementById("ci_creditoSistema").value || 0),
       gastosCaja: Number(document.getElementById("ci_gastosCaja").value),
       bolsaSeguridad: Number(document.getElementById("ci_bolsaSeguridad").value),
       bolsaRecibida: false,
@@ -1469,8 +1508,10 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
     verifPrincipalesBlock.style.display = "none";
     ciSumaPrincipales.value = "";
     document.getElementById("ci_datafonoAutoNote").style.display = "none";
+    document.getElementById("ci_montoInicialAutoNote").style.display = "none";
     document.getElementById("ci_fecha").value = todayStr();
     ciTarjetasContadas.value = "";
+    if (typeof autoFillMontoInicial === "function") autoFillMontoInicial();
     renderLiveDiff();
     renderDiffPrincipales();
     renderStatCards();
@@ -1733,8 +1774,9 @@ function openCierreDetail(r) {
   document.getElementById("detailBody").innerHTML = `
     <div class="detail-grid">
       ${detailRow("Datafonos con movimiento", datafonosPillList(cierreDatafonosActivos(r)))}
+      ${detailRow("Monto inicial (base de caja)", r.montoInicial != null ? fmtMoney(r.montoInicial) : "N/A")}
       ${detailRow("Efectivo sistema / contado", fmtMoney(r.efectivoSistema) + " / " + fmtMoney(r.efectivoContado))}
-      ${detailRow("Total en efectivo (ingresos - gastos)", r.efectivoEsperado != null ? fmtMoney(r.efectivoEsperado) : "N/A")}
+      ${detailRow("Efectivo esperado (base + ventas - gastos)", r.efectivoEsperado != null ? fmtMoney(r.efectivoEsperado) : "N/A")}
       ${detailRow("Diferencia efectivo", fmtMoney(r.diferenciaEfectivo))}
       ${detailRow("Transferencias sistema / contadas", fmtMoney(r.transferenciasSistema) + " / " + fmtMoney(r.transferenciasContadas))}
       ${detailRow("Diferencia transferencias", fmtMoney(r.diferenciaTransferencias))}
@@ -1745,6 +1787,10 @@ function openCierreDetail(r) {
       ${detailRow("Suma Datafono(s) Principal(es) / facturado electronicamente", principalesResumen(r).suma != null ? (fmtMoney(principalesResumen(r).suma) + " / " + fmtMoney(principalesResumen(r).facturado)) : "N/A")}
       ${detailRow("Verif. facturacion Datafono(s) Principal(es)", verifDianPill(principalesResumen(r).verif))}
       ${detailRow("Datafono 3 Alterno (monto)", r.datafonoAlterno != null ? fmtMoney(r.datafonoAlterno) : "N/A")}
+      ${detailRow("Anticipos (sistema)", fmtMoney(r.anticiposSistema || 0))}
+      ${detailRow("Bonos de regalo (sistema)", fmtMoney(r.bonosSistema || 0))}
+      ${detailRow("Cortesia (sistema)", fmtMoney(r.cortesiaSistema || 0))}
+      ${detailRow("Credito (sistema)", fmtMoney(r.creditoSistema || 0))}
       ${detailRow("Gastos de caja", fmtMoney(r.gastosCaja))}
       ${detailRow("Bolsa de seguridad", fmtMoney(r.bolsaSeguridad))}
     </div>
@@ -1951,6 +1997,8 @@ function renderPanelGerencial() {
   const sum = key => rows.reduce((a,r) => a + (Number(r[key]) || 0), 0);
   const totalEfectivo = sum("efectivoContado"), totalTransf = sum("transferenciasContadas"), totalTarjetas = sum("tarjetasContadas");
   const totalVentas = totalEfectivo + totalTransf + totalTarjetas;
+  const totalOtrasFormas = sum("anticiposSistema") + sum("bonosSistema") + sum("cortesiaSistema") + sum("creditoSistema");
+  const totalVentasCompleto = totalVentas + totalOtrasFormas;
   const totalDescuadre = rows.reduce((a,r) => a + Math.abs(r.diferenciaEfectivo||0) + Math.abs(r.diferenciaTransferencias||0) + Math.abs(r.diferenciaTarjetas||0), 0);
   const conDescuadre = rows.filter(r => (r.diferenciaEfectivo||0)!==0 || (r.diferenciaTransferencias||0)!==0 || (r.diferenciaTarjetas||0)!==0).length;
   const turnosPrincipales = rows.filter(r => Number(r.datafonoP1) > 0 || Number(r.datafonoP2) > 0);
@@ -1967,6 +2015,7 @@ function renderPanelGerencial() {
   document.getElementById("pg_kpis").innerHTML =
     kpiCard("Cierres en el rango", rows.length) +
     kpiCard("Ventas totales", fmtMoney(totalVentas), "Efectivo + transf. + tarjetas") +
+    kpiCard("Ventas totales (con otras formas)", fmtMoney(totalVentasCompleto), "Incluye anticipos, bonos, cortesia y credito") +
     kpiCard("Descuadre acumulado", fmtMoney(totalDescuadre), conDescuadre + " cierres con diferencia", totalDescuadre>0) +
     kpiCard("Descuadre promedio / cierre", fmtMoney(promDescuadre)) +
     kpiCard("Cumplimiento facturacion", pctDian + "%", totalCoincide + "/" + totalVerificaciones + " verificaciones de Datafono Principal", pctDian<100) +
@@ -2099,18 +2148,22 @@ document.getElementById("btnExportAlistamiento").addEventListener("click", () =>
 document.getElementById("btnExportCierre").addEventListener("click", () => {
   const columns = [
     { header: "Fecha", key: "fecha" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos con movimiento", key: "datafonos" },
-    { header: "Efectivo sistema", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Dif. efectivo", key: "de" },
+    { header: "Monto inicial", key: "mi" },
+    { header: "Efectivo sistema", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Efectivo esperado", key: "ee" }, { header: "Dif. efectivo", key: "de" },
     { header: "Transf. sistema", key: "ts" }, { header: "Transf. contadas", key: "tc" }, { header: "Dif. transf.", key: "dt" },
     { header: "Tarjetas sistema", key: "tjs" }, { header: "Tarjetas contadas", key: "tjc" }, { header: "Dif. tarjetas", key: "dtj" },
     { header: "Datafono P1", key: "dp1" }, { header: "Datafono P2", key: "dp2" }, { header: "Datafono Alterno", key: "da" },
     { header: "Suma Datafono Principal", key: "sp" }, { header: "Facturado Principal", key: "fp" }, { header: "Verif. Principal", key: "vp" },
+    { header: "Anticipos", key: "anti" }, { header: "Bonos regalo", key: "bono" }, { header: "Cortesia", key: "cort" }, { header: "Credito", key: "cred" },
     { header: "Gastos caja", key: "gastos" }, { header: "Bolsa seguridad", key: "bolsa" }, { header: "Observaciones", key: "obs" },
   ];
-  const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), es: r.efectivoSistema, ec: r.efectivoContado, de: r.diferenciaEfectivo,
+  const rows = cierresCache.map(r => { const pr = principalesResumen(r); return { fecha: r.fecha, responsable: r.responsable, datafonos: cierreDatafonosActivos(r).join(" + "), mi: r.montoInicial,
+    es: r.efectivoSistema, ec: r.efectivoContado, ee: r.efectivoEsperado, de: r.diferenciaEfectivo,
     ts: r.transferenciasSistema, tc: r.transferenciasContadas, dt: r.diferenciaTransferencias,
     tjs: r.tarjetasSistema, tjc: r.tarjetasContadas, dtj: r.diferenciaTarjetas,
     dp1: r.datafonoP1, dp2: r.datafonoP2, da: r.datafonoAlterno,
     sp: pr.suma, fp: pr.facturado, vp: pr.verif,
+    anti: r.anticiposSistema, bono: r.bonosSistema, cort: r.cortesiaSistema, cred: r.creditoSistema,
     gastos: r.gastosCaja, bolsa: r.bolsaSeguridad, obs: r.observaciones }; });
   exportToExcel(rows, columns, "cierres_caja.xlsx");
 });
