@@ -766,6 +766,14 @@
   </div>
 </div>
 
+<!-- Modal para ver fotos de comprobantes en grande -->
+<div class="modal-overlay" id="imgModal">
+  <div class="modal-box" style="max-width:520px;padding:16px;text-align:center">
+    <span class="modal-close" id="imgModalClose"></span>
+    <img id="imgModalPic" style="max-width:100%;max-height:78vh;border-radius:10px;display:block;margin:10px auto 0">
+  </div>
+</div>
+
 <!-- Alarma 11:20am -->
 <div id="alarmOverlay">
   <div class="alarm-box">
@@ -1769,7 +1777,7 @@ function renderComprobantesTable() {
   }
   tbody.innerHTML = todays.map(r => `<tr>
       <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td class="td-lecturaIA">${legiblePill(r)}</td><td>${r.nota || "-"}</td>
-      <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="window.open(this.src)">` : "-"}</td>
+      <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
     </tr>`).join("");
   if (!IA_COMPROBANTES_ACTIVA) {
     const th = document.getElementById("th_lecturaIA");
@@ -1933,10 +1941,20 @@ const detailModal = document.getElementById("detailModal");
 document.getElementById("detailModalClose").addEventListener("click", () => detailModal.classList.remove("show"));
 detailModal.addEventListener("click", (e) => { if (e.target === detailModal) detailModal.classList.remove("show"); });
 
+/* Ver foto de comprobante en grande: se usa un modal en vez de window.open porque Chrome bloquea
+   abrir en pestaña nueva un enlace tipo "data:" (las fotos se guardan como base64) y deja la pestaña en blanco. */
+const imgModal = document.getElementById("imgModal");
+function openImageLightbox(src) {
+  document.getElementById("imgModalPic").src = src;
+  imgModal.classList.add("show");
+}
+document.getElementById("imgModalClose").addEventListener("click", () => imgModal.classList.remove("show"));
+imgModal.addEventListener("click", (e) => { if (e.target === imgModal) imgModal.classList.remove("show"); });
+
 function detailRow(label, value) { return `<div><div class="dt">${label}</div><div class="dd">${value}</div></div>`; }
 function thumbRow(label, arr) {
   if (!arr || !arr.length) return "";
-  return `<div style="margin-top:10px"><div class="dt">${label}</div><div class="thumbs">${arr.map(src => `<img src="${src}" onclick="window.open(this.src)">`).join("")}</div></div>`;
+  return `<div style="margin-top:10px"><div class="dt">${label}</div><div class="thumbs">${arr.map(src => `<img src="${src}" onclick="openImageLightbox(this.src)">`).join("")}</div></div>`;
 }
 
 function openCierreDetail(r) {
