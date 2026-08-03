@@ -1311,11 +1311,10 @@ async function filesToBase64(inputEl, maxFiles) {
 }
 
 /* ============================= LECTURA DE COMPROBANTES CON IA ============================= */
-/* Desactivada temporalmente: los comprobantes fallaban con "error de conexion".
-   Vuelve a poner esto en true solo cuando api/leer-comprobante.js este desplegado
-   en Vercel y la ANTHROPIC_API_KEY este configurada. Mientras tanto, Comprobantes
-   funciona como recoleccion simple de fotos (sin lectura automatica). */
-const IA_COMPROBANTES_ACTIVA = false;
+/* Activada: api/leer-comprobante.js ya esta desplegado en Vercel y ANTHROPIC_API_KEY
+   quedo configurada (3 ago 2026). Si vuelve a fallar por "error de conexion", revisar
+   en Vercel -> Deployments -> Logs de la funcion /api/leer-comprobante. */
+const IA_COMPROBANTES_ACTIVA = true;
 async function leerComprobanteIA(dataUri) {
   if (!IA_COMPROBANTES_ACTIVA) return null;
   try {
@@ -1789,6 +1788,11 @@ function legiblePill(r) {
   if (r.legibleIA === false) return '<span class="pill warn">' + icon("alert", 12) + 'No legible</span>';
   return '<span class="pill off">Sin leer</span>';
 }
+function montoNumComprobante(r) {
+  if (r.legibleIA === true && r.montoIA != null) return Number(r.montoIA) || 0;
+  if (r.monto != null) return Number(r.monto) || 0;
+  return 0;
+}
 function montoComprobante(r) {
   if (r.legibleIA === true && r.montoIA != null) return fmtMoney(r.montoIA);
   if (r.monto != null) return fmtMoney(r.monto);
@@ -2246,7 +2250,8 @@ function renderPanelGerencial() {
     kpiCard("Cumplimiento facturacion", pctDian + "%", totalCoincide + "/" + totalVerificaciones + " verificaciones de Datafono Principal", pctDian<100) +
     kpiCard("Datafono / tarjetas", pctTarjetas + "%", "Meta: maximo " + META_DATAFONO_PCT + "% de las ventas", metaSuperada) +
     kpiCard("Turnos con datafono alterno", turnosAlterno) +
-    kpiCard("Comprobantes de transferencia", compRows.length, "Fotos registradas en el rango");
+    kpiCard("Comprobantes de transferencia", compRows.length, "Fotos registradas en el rango") +
+    kpiCard("Total comprobantes", fmtMoney(compRows.reduce((a,r)=>a+montoNumComprobante(r),0)), IA_COMPROBANTES_ACTIVA ? "Suma de montos leidos por IA / digitados" : "Suma de montos digitados (activa la lectura IA para que se complete sola)");
 
   renderBolsasSeguridad();
   renderMetaAlerta();
@@ -2361,10 +2366,12 @@ function renderPanelGerencial() {
   // Historico completo de comprobantes de transferencia en el rango filtrado (no solo los de hoy)
   const compTbody = document.getElementById("pg_compTbody");
   const compOrdenados = [...compRows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  const totalCompMonto = compRows.reduce((a,r)=>a+montoNumComprobante(r),0);
   compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
       <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${r.nota||"-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
-    </tr>`).join("") : '<tr><td colspan="7"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
+    </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td></tr>`
+    : '<tr><td colspan="7"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
 }
 document.getElementById("bellBtn").addEventListener("click", () => { if (currentRole==="gerente") document.getElementById("navPanel").click(); });
 
