@@ -750,6 +750,32 @@
           <tbody id="pg_tbody"><tr><td colspan="9"><div class="empty-state">Cargando...</div></td></tr></tbody>
         </table>
       </div>
+
+      <div class="toolbar" style="margin-top:6px">
+        <h3 style="margin:0;color:var(--espresso);font-size:16px;">Historico de cuadres de caja (todos, en el rango filtrado)</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Sede</th><th>Responsable</th><th>Datafono</th><th>Efectivo (dif)</th><th>Transf. (dif)</th><th>Tarjetas (dif)</th><th>Gastos</th><th>Bolsa seguridad</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="pg_cierresTbody"><tr><td colspan="10"><div class="empty-state">Cargando...</div></td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="toolbar" style="margin-top:6px">
+        <h3 style="margin:0;color:var(--espresso);font-size:16px;">Historico de comprobantes de transferencia (todos, en el rango filtrado)</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Nota</th><th>Foto</th></tr>
+          </thead>
+          <tbody id="pg_compTbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     </div>
@@ -768,9 +794,10 @@
 
 <!-- Modal para ver fotos de comprobantes en grande -->
 <div class="modal-overlay" id="imgModal">
-  <div class="modal-box" style="max-width:520px;padding:16px;text-align:center">
+  <div class="modal-box" style="max-width:900px;padding:16px;text-align:center">
     <span class="modal-close" id="imgModalClose"></span>
-    <img id="imgModalPic" style="max-width:100%;max-height:78vh;border-radius:10px;display:block;margin:10px auto 0">
+    <img id="imgModalPic" style="max-width:100%;max-height:85vh;border-radius:10px;display:block;margin:10px auto 0">
+    <p class="muted" style="margin:8px 0 0;font-size:12px">Toca fuera de la imagen para cerrar</p>
   </div>
 </div>
 
@@ -2318,6 +2345,26 @@ function renderPanelGerencial() {
 
   document.getElementById("bellCount").style.display = problematicos.length ? "block" : "none";
   document.getElementById("bellCount").textContent = problematicos.length;
+
+  // Historico completo de cuadres de caja en el rango filtrado (no solo los que tienen diferencia)
+  const cierresTbody = document.getElementById("pg_cierresTbody");
+  const rowsOrdenadas = [...rows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  cierresTbody.innerHTML = rowsOrdenadas.length ? rowsOrdenadas.map(r => `<tr class="clickable" data-pgc="${cierresCache.indexOf(r)}">
+      <td>${r.fecha||"-"}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable||"-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
+      <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
+      <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
+      <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
+      <td>${fmtMoney(r.gastosCaja)}</td><td>${fmtMoney(r.bolsaSeguridad)}</td><td>${icon("eye",16)}</td>
+    </tr>`).join("") : '<tr><td colspan="10"><div class="empty-state">Sin cuadres de caja en el rango.</div></td></tr>';
+  cierresTbody.querySelectorAll("tr[data-pgc]").forEach(tr => tr.addEventListener("click", () => openCierreDetail(cierresCache[Number(tr.dataset.pgc)])));
+
+  // Historico completo de comprobantes de transferencia en el rango filtrado (no solo los de hoy)
+  const compTbody = document.getElementById("pg_compTbody");
+  const compOrdenados = [...compRows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${r.nota||"-"}</td>
+      <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
+    </tr>`).join("") : '<tr><td colspan="7"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
 }
 document.getElementById("bellBtn").addEventListener("click", () => { if (currentRole==="gerente") document.getElementById("navPanel").click(); });
 
