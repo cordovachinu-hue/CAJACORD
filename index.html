@@ -526,8 +526,9 @@
             <small class="muted" id="ci_montoInicialAutoNote" style="display:none"></small>
             <div class="form-grid">
               <div class="field"><label id="lbl_ts">Transferencias sistema <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
-              <div class="field"><label id="lbl_tc">Transferencias contadas <span class="req">*</span></label><input type="number" id="ci_transfContadas" step="0.01" required></div>
+              <div class="field locked"><label id="lbl_tc">Transferencias contadas (automatico)</label><input type="number" id="ci_transfContadas" step="0.01" readonly></div>
             </div>
+            <small class="muted" id="ci_transfNote" style="display:none"></small>
 
             <div class="form-grid">
               <div class="field"><label id="lbl_tjs">Tarjetas sistema <span class="req">*</span></label><input type="number" id="ci_tarjetasSistema" step="0.01" required></div>
@@ -771,9 +772,9 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Nota</th><th>Foto</th></tr>
+            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Fuente</th><th>Nota</th><th>Foto</th><th></th></tr>
           </thead>
-          <tbody id="pg_compTbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
+          <tbody id="pg_compTbody"><tr><td colspan="9"><div class="empty-state">Cargando...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -822,7 +823,7 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc
+  getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ============================================================
@@ -1116,6 +1117,7 @@ navItems.forEach(item => {
     if (item.dataset.view === "panel") renderPanelGerencial();
     if (item.dataset.view === "cierre" && typeof autoFillDatafonoCierre === "function") autoFillDatafonoCierre();
     if (item.dataset.view === "cierre" && typeof autoFillMontoInicial === "function") autoFillMontoInicial();
+    if (item.dataset.view === "cierre" && typeof recomputeTransfContadas === "function") recomputeTransfContadas();
     closeMobileSidebar();
   });
 });
@@ -1378,6 +1380,7 @@ const ciDatafonoP1Check = document.getElementById("ci_datafonoP1_activo");
 const ciDatafonoP2Check = document.getElementById("ci_datafonoP2_activo");
 const ciDatafonoAltCheck = document.getElementById("ci_datafonoAlterno_activo");
 const ciTarjetasContadas = document.getElementById("ci_tarjetasContadas");
+const ciTransfContadas = document.getElementById("ci_transfContadas");
 const verifPrincipalesBlock = document.getElementById("ci_verifPrincipalesBlock");
 const verifPrincipalesFields = ["ci_facturadoPrincipales"];
 const ciSumaPrincipales = document.getElementById("ci_sumaPrincipales");
@@ -1385,6 +1388,32 @@ const ciSumaPrincipales = document.getElementById("ci_sumaPrincipales");
 function recomputeTarjetasContadas() {
   const total = Number(ciDatafonoP1.value || 0) + Number(ciDatafonoP2.value || 0) + Number(ciDatafonoAlterno.value || 0);
   ciTarjetasContadas.value = total;
+  renderLiveDiff();
+  renderStatCards();
+}
+
+/* Transferencias contadas ya no se digita: se suma sola con los comprobantes de hoy de
+   esta sede. Modo de rectificacion: si la IA leyo la foto, usa ese monto; si la foto salio
+   ilegible (o la IA esta apagada), usa el monto que el mesero escribio a mano al subirla. */
+function recomputeTransfContadas() {
+  if (!ciTransfContadas) return;
+  const hoy = todayStr();
+  const deHoy = comprobantesCache.filter(r => r.fecha === hoy && (!currentSede || sedeOf(r) === currentSede));
+  const total = deHoy.reduce((a, r) => a + montoNumComprobante(r), 0);
+  ciTransfContadas.value = total;
+  const porIA = deHoy.filter(r => r.legibleIA === true && r.montoIA != null).length;
+  const porMesero = deHoy.filter(r => !(r.legibleIA === true && r.montoIA != null) && r.monto != null).length;
+  const sinMonto = deHoy.length - porIA - porMesero;
+  const nota = document.getElementById("ci_transfNote");
+  if (nota) {
+    if (deHoy.length) {
+      nota.style.display = "block";
+      nota.innerHTML = icon("checkc", 12) + ` ${deHoy.length} comprobantes de hoy: ${porIA} leidos por IA, ${porMesero} con el monto del mesero` + (sinMonto ? `, ${sinMonto} sin monto (no suman)` : "") + ".";
+    } else {
+      nota.style.display = "block";
+      nota.innerHTML = icon("alert", 12) + " Aun no hay comprobantes registrados hoy para esta sede.";
+    }
+  }
   renderLiveDiff();
   renderStatCards();
 }
@@ -1706,6 +1735,7 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
     document.getElementById("ci_fecha").value = todayStr();
     ciTarjetasContadas.value = "";
     if (typeof autoFillMontoInicial === "function") autoFillMontoInicial();
+    if (typeof recomputeTransfContadas === "function") recomputeTransfContadas();
     renderLiveDiff();
     renderDiffPrincipales();
     renderStatCards();
@@ -1746,6 +1776,8 @@ function startListeners() {
     comprobantesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderComprobantesTable();
     updateResponsablesList();
+    if (typeof recomputeTransfContadas === "function") recomputeTransfContadas();
+    if (document.getElementById("view-panel").style.display !== "none") renderPanelGerencial();
   });
 }
 
@@ -1792,6 +1824,14 @@ function montoNumComprobante(r) {
   if (r.legibleIA === true && r.montoIA != null) return Number(r.montoIA) || 0;
   if (r.monto != null) return Number(r.monto) || 0;
   return 0;
+}
+/* Modo de rectificacion: si la IA pudo leer la foto, ese monto manda. Si la foto salio
+   ilegible (o la IA esta desactivada), se usa el monto que el mesero digito a mano al
+   subir el comprobante, como respaldo. Esto es lo que alimenta Transferencias contadas. */
+function fuenteMontoPill(r) {
+  if (r.legibleIA === true && r.montoIA != null) return '<span class="pill ok">IA</span>';
+  if (r.monto != null) return '<span class="pill warn">Mesero</span>';
+  return '<span class="pill off">Sin monto</span>';
 }
 function montoComprobante(r) {
   if (r.legibleIA === true && r.montoIA != null) return fmtMoney(r.montoIA);
@@ -2368,10 +2408,25 @@ function renderPanelGerencial() {
   const compOrdenados = [...compRows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   const totalCompMonto = compRows.reduce((a,r)=>a+montoNumComprobante(r),0);
   compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${r.nota||"-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td><td>${r.nota||"-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
-    </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td></tr>`
-    : '<tr><td colspan="7"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
+      <td><button type="button" class="btn-ghost" data-del-comp="${r.id}" style="padding:5px 9px">${icon("trash",14)}</button></td>
+    </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td><td></td><td></td></tr>`
+    : '<tr><td colspan="9"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
+  compTbody.querySelectorAll("button[data-del-comp]").forEach(btn => btn.addEventListener("click", async () => {
+    const id = btn.dataset.delComp;
+    if (!id) return;
+    if (!confirm("¿Eliminar este comprobante? Esta accion no se puede deshacer.")) return;
+    btn.disabled = true;
+    try {
+      await deleteDoc(doc(db, COL_COMPROBANTES, id));
+      toast("Comprobante eliminado.");
+    } catch (err) {
+      toast("No se pudo eliminar. Revisa tu conexion.", true);
+      console.error(err);
+      btn.disabled = false;
+    }
+  }));
 }
 document.getElementById("bellBtn").addEventListener("click", () => { if (currentRole==="gerente") document.getElementById("navPanel").click(); });
 
