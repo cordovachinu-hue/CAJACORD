@@ -731,9 +731,9 @@
         <div class="table-wrap" style="max-height:360px">
           <table>
             <thead>
-              <tr><th>Fecha</th><th>Responsable</th><th>Monto</th><th>Estado</th><th>Recibido por / cuando</th><th></th></tr>
+              <tr><th>Fecha</th><th>Sede</th><th>Responsable</th><th>Monto</th><th>Estado</th><th>Recibido por / cuando</th><th></th></tr>
             </thead>
-            <tbody id="pg_bolsasTbody"><tr><td colspan="6"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <tbody id="pg_bolsasTbody"><tr><td colspan="7"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2312,7 +2312,11 @@ function kpiCard(label, value, sub, accent) {
 
 /* ============================= CONTROL DE BOLSAS DE SEGURIDAD ============================= */
 function renderBolsasSeguridad() {
-  const rows = cierresCache.filter(r => (Number(r.bolsaSeguridad) || 0) > 0);
+  // Respeta el filtro de Sede (para que Chinu y Monteria nunca se mezclen), pero a proposito
+  // NO se limita al rango de fechas del panel: una bolsa pendiente de hace tiempo no debe
+  // desaparecer solo porque el filtro de fechas no la cubre.
+  const sede = pgSedeVal();
+  const rows = cierresCache.filter(r => (Number(r.bolsaSeguridad) || 0) > 0 && (!sede || sedeOf(r) === sede));
   const pendientes = rows.filter(r => !r.bolsaRecibida);
   const recibidas = rows.filter(r => r.bolsaRecibida);
   const totalPendiente = pendientes.reduce((a, r) => a + (Number(r.bolsaSeguridad) || 0), 0);
@@ -2328,7 +2332,7 @@ function renderBolsasSeguridad() {
   const tbody = document.getElementById("pg_bolsasTbody");
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">Aun no hay montos en bolsa de seguridad registrados.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aun no hay montos en bolsa de seguridad registrados.</div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r => {
@@ -2339,7 +2343,7 @@ function renderBolsasSeguridad() {
     const recInfo = r.bolsaRecibida ? ((r.bolsaRecibidaPor || "Gerencia") + " &middot; " + fmtDate(r.bolsaRecibidaEn)) : "-";
     const accion = r.bolsaRecibida ? "-" : `<button class="btn-primary" style="padding:4px 10px;font-size:12px" data-recibir="${idx}">${icon("checkc",13)}Recibido</button>`;
     return `<tr>
-      <td>${r.fecha || fmtDate(r.creadoEn)}</td><td>${r.responsable || "-"}</td><td>${fmtMoney(r.bolsaSeguridad)}</td>
+      <td>${r.fecha || fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${fmtMoney(r.bolsaSeguridad)}</td>
       <td>${estado}</td><td>${recInfo}</td><td>${accion}</td>
     </tr>`;
   }).join("");
