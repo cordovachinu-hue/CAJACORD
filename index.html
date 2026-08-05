@@ -802,6 +802,48 @@
   </div>
 </div>
 
+<!-- Modal para editar un cierre de caja ya guardado, solo disponible desde Panel Gerencial -->
+<div class="modal-overlay" id="editCierreModal">
+  <div class="modal-box" style="max-width:680px">
+    <span class="modal-close" id="editCierreModalClose"></span>
+    <h3>Editar cierre de caja</h3>
+    <p class="muted" id="editCierreSub">Solo Gerencia puede corregir un cierre ya guardado.</p>
+    <div class="form-grid">
+      <div class="field"><label>Responsable</label><input type="text" id="ec_responsable"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="ec_fecha"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Monto inicial (base de caja)</label><input type="number" id="ec_montoInicial" step="0.01"></div>
+      <div class="field"><label>Efectivo sistema</label><input type="number" id="ec_efectivoSistema" step="0.01"></div>
+      <div class="field"><label>Efectivo contado</label><input type="number" id="ec_efectivoContado" step="0.01"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Transferencias sistema</label><input type="number" id="ec_transfSistema" step="0.01"></div>
+      <div class="field"><label>Transferencias contadas</label><input type="number" id="ec_transfContadas" step="0.01"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Tarjetas sistema</label><input type="number" id="ec_tarjetasSistema" step="0.01"></div>
+      <div class="field"><label>Tarjetas contadas</label><input type="number" id="ec_tarjetasContadas" step="0.01"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Gastos de caja</label><input type="number" id="ec_gastosCaja" step="0.01"></div>
+      <div class="field"><label>Bolsa de seguridad</label><input type="number" id="ec_bolsaSeguridad" step="0.01"></div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Anticipos</label><input type="number" id="ec_anticipos" step="0.01"></div>
+      <div class="field"><label>Bonos de regalo</label><input type="number" id="ec_bonos" step="0.01"></div>
+      <div class="field"><label>Cortesia</label><input type="number" id="ec_cortesia" step="0.01"></div>
+      <div class="field"><label>Credito</label><input type="number" id="ec_credito" step="0.01"></div>
+    </div>
+    <div class="field"><label>Observaciones</label><textarea id="ec_observaciones" rows="2" style="width:100%;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px"></textarea></div>
+    <div id="ec_preview" class="kpi-row" style="margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button type="button" class="btn-ghost" id="ec_cancelBtn">Cancelar</button>
+      <button type="button" class="btn-primary" id="ec_saveBtn">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- Alarma 11:20am -->
 <div id="alarmOverlay">
   <div class="alarm-box">
@@ -899,6 +941,7 @@ const RAW_ICONS = {
   floor: '<path d="M3 20h18M3 20l6-12h6l6 12"/>',
   lamp: '<path d="M12 2v4"/><path d="M6 10h12l-2 6H8z"/><path d="M9 20h6"/><path d="M10 16l-1 4M14 16l1 4"/>',
   trash: '<path d="M4 7h16"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4h6v3"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   personal: '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
   shield: '<path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
@@ -2022,6 +2065,105 @@ function openImageLightbox(src) {
 document.getElementById("imgModalClose").addEventListener("click", () => imgModal.classList.remove("show"));
 imgModal.addEventListener("click", (e) => { if (e.target === imgModal) imgModal.classList.remove("show"); });
 
+/* ============================= EDITAR CIERRE (solo Panel Gerencial) ============================= */
+let editingCierreId = null;
+const editCierreModal = document.getElementById("editCierreModal");
+const ecFields = ["ec_montoInicial","ec_efectivoSistema","ec_efectivoContado","ec_transfSistema","ec_transfContadas","ec_tarjetasSistema","ec_tarjetasContadas","ec_gastosCaja","ec_bolsaSeguridad","ec_anticipos","ec_bonos","ec_cortesia","ec_credito"];
+
+function openEditCierre(r) {
+  if (!r || !r.id) return;
+  editingCierreId = r.id;
+  document.getElementById("editCierreSub").textContent = (r.fecha || "-") + " · " + SEDE_LABELS[sedeOf(r)] + " · Solo Gerencia puede corregir un cierre ya guardado.";
+  document.getElementById("ec_responsable").value = r.responsable || "";
+  document.getElementById("ec_fecha").value = r.fecha || "";
+  document.getElementById("ec_montoInicial").value = r.montoInicial != null ? r.montoInicial : "";
+  document.getElementById("ec_efectivoSistema").value = r.efectivoSistema != null ? r.efectivoSistema : "";
+  document.getElementById("ec_efectivoContado").value = r.efectivoContado != null ? r.efectivoContado : "";
+  document.getElementById("ec_transfSistema").value = r.transferenciasSistema != null ? r.transferenciasSistema : "";
+  document.getElementById("ec_transfContadas").value = r.transferenciasContadas != null ? r.transferenciasContadas : "";
+  document.getElementById("ec_tarjetasSistema").value = r.tarjetasSistema != null ? r.tarjetasSistema : "";
+  document.getElementById("ec_tarjetasContadas").value = r.tarjetasContadas != null ? r.tarjetasContadas : "";
+  document.getElementById("ec_gastosCaja").value = r.gastosCaja != null ? r.gastosCaja : "";
+  document.getElementById("ec_bolsaSeguridad").value = r.bolsaSeguridad != null ? r.bolsaSeguridad : "";
+  document.getElementById("ec_anticipos").value = r.anticiposSistema != null ? r.anticiposSistema : "";
+  document.getElementById("ec_bonos").value = r.bonosSistema != null ? r.bonosSistema : "";
+  document.getElementById("ec_cortesia").value = r.cortesiaSistema != null ? r.cortesiaSistema : "";
+  document.getElementById("ec_credito").value = r.creditoSistema != null ? r.creditoSistema : "";
+  document.getElementById("ec_observaciones").value = r.observaciones || "";
+  updateEditPreview();
+  editCierreModal.classList.add("show");
+}
+
+function updateEditPreview() {
+  const num = id => Number(document.getElementById(id).value || 0);
+  const efectivoEsperado = num("ec_montoInicial") + num("ec_efectivoSistema") - num("ec_gastosCaja");
+  const dEfectivo = num("ec_efectivoContado") - efectivoEsperado;
+  const dTransf = num("ec_transfContadas") - num("ec_transfSistema");
+  const dTarjetas = num("ec_tarjetasContadas") - num("ec_tarjetasSistema");
+  const pill = v => `<span class="${(v||0)===0?'diff-ok':'diff-bad'}">${fmtMoney(v)}</span>`;
+  document.getElementById("ec_preview").innerHTML =
+    kpiCard("Efectivo esperado", fmtMoney(efectivoEsperado)) +
+    kpiCard("Dif. efectivo", pill(dEfectivo)) +
+    kpiCard("Dif. transferencias", pill(dTransf)) +
+    kpiCard("Dif. tarjetas", pill(dTarjetas));
+}
+ecFields.forEach(id => document.getElementById(id).addEventListener("input", updateEditPreview));
+
+function closeEditCierre() {
+  editCierreModal.classList.remove("show");
+  editingCierreId = null;
+}
+document.getElementById("editCierreModalClose").addEventListener("click", closeEditCierre);
+document.getElementById("ec_cancelBtn").addEventListener("click", closeEditCierre);
+editCierreModal.addEventListener("click", (e) => { if (e.target === editCierreModal) closeEditCierre(); });
+
+document.getElementById("ec_saveBtn").addEventListener("click", async () => {
+  if (!editingCierreId) return;
+  const btn = document.getElementById("ec_saveBtn");
+  const num = id => Number(document.getElementById(id).value || 0);
+  const montoInicial = num("ec_montoInicial");
+  const efectivoSistema = num("ec_efectivoSistema");
+  const efectivoContado = num("ec_efectivoContado");
+  const gastosCaja = num("ec_gastosCaja");
+  const transferenciasSistema = num("ec_transfSistema");
+  const transferenciasContadas = num("ec_transfContadas");
+  const tarjetasSistema = num("ec_tarjetasSistema");
+  const tarjetasContadas = num("ec_tarjetasContadas");
+  const efectivoEsperado = montoInicial + efectivoSistema - gastosCaja;
+  const updateData = {
+    responsable: document.getElementById("ec_responsable").value.trim(),
+    fecha: document.getElementById("ec_fecha").value,
+    montoInicial, efectivoSistema, efectivoContado, efectivoEsperado,
+    diferenciaEfectivo: efectivoContado - efectivoEsperado,
+    transferenciasSistema, transferenciasContadas,
+    diferenciaTransferencias: transferenciasContadas - transferenciasSistema,
+    tarjetasSistema, tarjetasContadas,
+    diferenciaTarjetas: tarjetasContadas - tarjetasSistema,
+    gastosCaja,
+    bolsaSeguridad: num("ec_bolsaSeguridad"),
+    anticiposSistema: num("ec_anticipos"),
+    bonosSistema: num("ec_bonos"),
+    cortesiaSistema: num("ec_cortesia"),
+    creditoSistema: num("ec_credito"),
+    observaciones: document.getElementById("ec_observaciones").value.trim(),
+    editadoEn: serverTimestamp(),
+    editadoPor: document.getElementById("userName") ? document.getElementById("userName").textContent : "Gerencia",
+  };
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
+  try {
+    await updateDoc(doc(db, COL_CIERRE, editingCierreId), updateData);
+    toast("Cierre actualizado.");
+    closeEditCierre();
+  } catch (err) {
+    toast("No se pudo guardar. Revisa tu conexion.", true);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar cambios";
+  }
+});
+
 function detailRow(label, value) { return `<div><div class="dt">${label}</div><div class="dd">${value}</div></div>`; }
 function thumbRow(label, arr) {
   if (!arr || !arr.length) return "";
@@ -2060,6 +2202,7 @@ function openCierreDetail(r) {
     ${denomRows ? `<div class="table-wrap" style="max-height:200px"><table><thead><tr><th>Denominacion</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>${denomRows}</tbody></table></div>` : ""}
     ${(r.gastosDetalle && r.gastosDetalle.length) ? `<div class="table-wrap" style="max-height:200px;margin-top:10px"><table><thead><tr><th>Proveedor</th><th>Categoria</th><th>Comentario</th><th>Importe</th></tr></thead><tbody>${r.gastosDetalle.map(g => `<tr><td>${g.proveedor||"-"}</td><td>${g.categoria||"-"}</td><td>${g.comentario||"-"}</td><td>${fmtMoney(g.importe)}</td></tr>`).join("")}</tbody></table></div>` : ""}
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
+    ${r.editadoEn ? `<p class="muted" style="margin-top:6px">${icon("edit",12)} Editado por ${r.editadoPor || "Gerencia"} · ${fmtDate(r.editadoEn)}</p>` : ""}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
     ${thumbRow("Comprobantes de gastos", r.comprobantesGastos)}
   `;
@@ -2399,8 +2542,37 @@ function renderPanelGerencial() {
       <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
       <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
       <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
-      <td>${fmtMoney(r.gastosCaja)}</td><td>${fmtMoney(r.bolsaSeguridad)}</td><td>${icon("eye",16)}</td>
+      <td>${fmtMoney(r.gastosCaja)}</td><td>${fmtMoney(r.bolsaSeguridad)}</td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn-ghost" data-detail-ci="${cierresCache.indexOf(r)}" style="padding:5px 8px" title="Ver detalle">${icon("eye",14)}</button>
+        <button type="button" class="btn-ghost" data-edit-ci="${r.id}" style="padding:5px 8px" title="Editar">${icon("edit",14)}</button>
+        <button type="button" class="btn-ghost" data-del-ci="${r.id}" style="padding:5px 8px" title="Eliminar">${icon("trash",14)}</button>
+      </td>
     </tr>`).join("") : '<tr><td colspan="10"><div class="empty-state">Sin cuadres de caja en el rango.</div></td></tr>';
+  cierresTbody.querySelectorAll("button[data-detail-ci]").forEach(btn => btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openCierreDetail(cierresCache[Number(btn.dataset.detailCi)]);
+  }));
+  cierresTbody.querySelectorAll("button[data-edit-ci]").forEach(btn => btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const r = cierresCache.find(c => c.id === btn.dataset.editCi);
+    if (r) openEditCierre(r);
+  }));
+  cierresTbody.querySelectorAll("button[data-del-ci]").forEach(btn => btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.delCi;
+    if (!id) return;
+    if (!confirm("¿Eliminar este cuadre de caja? Esta accion no se puede deshacer.")) return;
+    btn.disabled = true;
+    try {
+      await deleteDoc(doc(db, COL_CIERRE, id));
+      toast("Cuadre de caja eliminado.");
+    } catch (err) {
+      toast("No se pudo eliminar. Revisa tu conexion.", true);
+      console.error(err);
+      btn.disabled = false;
+    }
+  }));
   cierresTbody.querySelectorAll("tr[data-pgc]").forEach(tr => tr.addEventListener("click", () => openCierreDetail(cierresCache[Number(tr.dataset.pgc)])));
 
   // Historico completo de comprobantes de transferencia en el rango filtrado (no solo los de hoy)
