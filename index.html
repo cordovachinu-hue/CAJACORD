@@ -573,7 +573,6 @@
             <label class="datafono-check"><input type="checkbox" id="ci_sinGastosHoy"> No hubo gastos hoy</label>
             <div id="ci_gastosResumen" class="totals-row" style="margin:10px 0 0 0"></div>
             <div class="form-grid">
-              <div class="field"><label id="lbl_cg">Comprobantes de gastos</label><input type="file" id="ci_comprobantesGastos" accept="image/*" multiple></div>
               <div class="field"><label id="lbl_bs">Cuanto guardas en bolsa de seguridad <span class="req">*</span></label><input type="number" id="ci_bolsaSeguridad" step="0.01" required></div>
             </div>
           </div>
@@ -772,9 +771,9 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Fuente</th><th>Nota</th><th>Foto</th><th></th></tr>
+            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Fuente</th><th>Cierre</th><th>Nota</th><th>Foto</th><th></th></tr>
           </thead>
-          <tbody id="pg_compTbody"><tr><td colspan="9"><div class="empty-state">Cargando...</div></td></tr></tbody>
+          <tbody id="pg_compTbody"><tr><td colspan="10"><div class="empty-state">Cargando...</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1032,7 +1031,7 @@ document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control 
  ["lbl_anti","invoice","Anticipos (sistema)"],["lbl_bono","invoice","Bonos de regalo (sistema)"],
  ["lbl_cort","invoice","Cortesia (sistema)"],["lbl_cred","invoice","Credito (sistema)"],
  ["lbl_ga","image","Reporte de gastos de Fudo (.xlsx)"],["lbl_gc","lock","Gastos de caja (automatico)"],
- ["lbl_cg","image","Comprobantes de gastos"],["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
+ ["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
  ["lbl_compMesa","table","Mesa *"],
  ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
  ["lbl_compFoto","camera","Foto del comprobante *"],["lbl_compNota","invoice","Nota"]
@@ -1438,20 +1437,30 @@ function recomputeTarjetasContadas() {
 /* Transferencias contadas ya no se digita: se suma sola con los comprobantes de hoy de
    esta sede. Modo de rectificacion: si la IA leyo la foto, usa ese monto; si la foto salio
    ilegible (o la IA esta apagada), usa el monto que el mesero escribio a mano al subirla. */
+/* IDs de los comprobantes que estan sumando ahora mismo en Transferencias contadas.
+   Se marcan como "usados" en el cierre apenas se guarda, para que ese mismo comprobante
+   nunca vuelva a sumar en el siguiente cierre (cada transferencia solo cuenta una vez). */
+let comprobantesParaClaim = [];
+
 function recomputeTransfContadas() {
   if (!ciTransfContadas) return;
   const hoy = todayStr();
-  const deHoy = comprobantesCache.filter(r => r.fecha === hoy && (!currentSede || sedeOf(r) === currentSede));
+  const deHoy = comprobantesCache.filter(r => r.fecha === hoy && !r.usadoEnCierre && (!currentSede || sedeOf(r) === currentSede));
   const total = deHoy.reduce((a, r) => a + montoNumComprobante(r), 0);
   ciTransfContadas.value = total;
+  comprobantesParaClaim = deHoy.map(r => r.id).filter(Boolean);
   const porIA = deHoy.filter(r => r.legibleIA === true && r.montoIA != null).length;
   const porMesero = deHoy.filter(r => !(r.legibleIA === true && r.montoIA != null) && r.monto != null).length;
   const sinMonto = deHoy.length - porIA - porMesero;
+  const yaContados = comprobantesCache.filter(r => r.fecha === hoy && r.usadoEnCierre && (!currentSede || sedeOf(r) === currentSede)).length;
   const nota = document.getElementById("ci_transfNote");
   if (nota) {
     if (deHoy.length) {
       nota.style.display = "block";
-      nota.innerHTML = icon("checkc", 12) + ` ${deHoy.length} comprobantes de hoy: ${porIA} leidos por IA, ${porMesero} con el monto del mesero` + (sinMonto ? `, ${sinMonto} sin monto (no suman)` : "") + ".";
+      nota.innerHTML = icon("checkc", 12) + ` ${deHoy.length} comprobantes nuevos de hoy: ${porIA} leidos por IA, ${porMesero} con el monto del mesero` + (sinMonto ? `, ${sinMonto} sin monto (no suman)` : "") + (yaContados ? `. (${yaContados} ya se contaron en un cierre anterior de hoy y no se repiten)` : "") + ".";
+    } else if (yaContados) {
+      nota.style.display = "block";
+      nota.innerHTML = icon("checkc", 12) + ` No hay comprobantes nuevos: los ${yaContados} de hoy ya se contaron en un cierre anterior.`;
     } else {
       nota.style.display = "block";
       nota.innerHTML = icon("alert", 12) + " Aun no hay comprobantes registrados hoy para esta sede.";
@@ -1756,13 +1765,20 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       bolsaRecibidaPor: null,
       observaciones: document.getElementById("ci_observaciones").value.trim(),
       comprobanteDatafono: await filesToBase64(document.getElementById("ci_comprobanteDatafono")),
-      comprobantesGastos: await filesToBase64(document.getElementById("ci_comprobantesGastos")),
       sede: currentSede,
       rol: currentRole,
       creadoPor: auth.currentUser ? auth.currentUser.uid : null,
       creadoEn: serverTimestamp(),
     };
-    await addDoc(collection(db, COL_CIERRE), data);
+    const nuevoCierre = await addDoc(collection(db, COL_CIERRE), data);
+    // Marca cada comprobante que se sumo en este cierre para que no se vuelva a contar
+    // en el siguiente cierre de la misma sede (cada transferencia cuenta una sola vez).
+    if (comprobantesParaClaim.length) {
+      await Promise.all(comprobantesParaClaim.map(cid =>
+        updateDoc(doc(db, COL_COMPROBANTES, cid), { usadoEnCierre: nuevoCierre.id }).catch(err => console.error("No se pudo marcar comprobante", cid, err))
+      ));
+      comprobantesParaClaim = [];
+    }
     statusEl.textContent = "";
     e.target.reset();
     resetDenominaciones();
@@ -2204,7 +2220,6 @@ function openCierreDetail(r) {
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
     ${r.editadoEn ? `<p class="muted" style="margin-top:6px">${icon("edit",12)} Editado por ${r.editadoPor || "Gerencia"} · ${fmtDate(r.editadoEn)}</p>` : ""}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
-    ${thumbRow("Comprobantes de gastos", r.comprobantesGastos)}
   `;
   detailModal.classList.add("show");
 }
@@ -2569,8 +2584,14 @@ function renderPanelGerencial() {
     if (!confirm("¿Eliminar este cuadre de caja? Esta accion no se puede deshacer.")) return;
     btn.disabled = true;
     try {
+      // Libera los comprobantes que este cierre habia marcado como "usados", para que
+      // vuelvan a estar disponibles y se cuenten en el proximo cierre (no se pierden).
+      const usados = comprobantesCache.filter(c => c.usadoEnCierre === id);
+      if (usados.length) {
+        await Promise.all(usados.map(c => updateDoc(doc(db, COL_COMPROBANTES, c.id), { usadoEnCierre: null }).catch(err => console.error(err))));
+      }
       await deleteDoc(doc(db, COL_CIERRE, id));
-      toast("Cuadre de caja eliminado.");
+      toast("Cuadre de caja eliminado" + (usados.length ? " y sus comprobantes quedaron disponibles de nuevo." : "."));
     } catch (err) {
       toast("No se pudo eliminar. Revisa tu conexion.", true);
       console.error(err);
@@ -2584,11 +2605,13 @@ function renderPanelGerencial() {
   const compOrdenados = [...compRows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   const totalCompMonto = compRows.reduce((a,r)=>a+montoNumComprobante(r),0);
   compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td><td>${r.nota||"-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td>
+      <td>${r.usadoEnCierre ? '<span class="pill ok">Contado</span>' : '<span class="pill off">Sin usar</span>'}</td>
+      <td>${r.nota||"-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
       <td><button type="button" class="btn-ghost" data-del-comp="${r.id}" style="padding:5px 9px">${icon("trash",14)}</button></td>
-    </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td><td></td><td></td></tr>`
-    : '<tr><td colspan="9"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
+    </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td><td></td><td></td><td></td></tr>`
+    : '<tr><td colspan="10"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
   compTbody.querySelectorAll("button[data-del-comp]").forEach(btn => btn.addEventListener("click", async () => {
     const id = btn.dataset.delComp;
     if (!id) return;
