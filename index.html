@@ -520,18 +520,18 @@
 
             <div class="form-grid">
               <div class="field"><label id="lbl_mi">Monto inicial (base de caja) <span class="req">*</span></label><input type="number" id="ci_montoInicial" step="0.01" required></div>
-              <div class="field"><label id="lbl_es">Efectivo sistema <span class="req">*</span></label><input type="number" id="ci_efectivoSistema" step="0.01" required></div>
+              <div class="field"><label id="lbl_es">Efectivo (Fudo) <span class="req">*</span></label><input type="number" id="ci_efectivoSistema" step="0.01" required></div>
               <div class="field locked"><label id="lbl_ec">Efectivo contado (automatico)</label><input type="number" id="ci_efectivoContado" step="0.01" readonly></div>
             </div>
             <small class="muted" id="ci_montoInicialAutoNote" style="display:none"></small>
             <div class="form-grid">
-              <div class="field"><label id="lbl_ts">Transferencias sistema <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
+              <div class="field"><label id="lbl_ts">Transferencias (Fudo) <span class="req">*</span></label><input type="number" id="ci_transfSistema" step="0.01" required></div>
               <div class="field locked"><label id="lbl_tc">Transferencias contadas (automatico)</label><input type="number" id="ci_transfContadas" step="0.01" readonly></div>
             </div>
             <small class="muted" id="ci_transfNote" style="display:none"></small>
 
             <div class="form-grid">
-              <div class="field"><label id="lbl_tjs">Tarjetas sistema <span class="req">*</span></label><input type="number" id="ci_tarjetasSistema" step="0.01" required></div>
+              <div class="field"><label id="lbl_tjs">Tarjetas (Fudo) <span class="req">*</span></label><input type="number" id="ci_tarjetasSistema" step="0.01" required></div>
               <div class="field locked"><label id="lbl_tjc">Tarjetas contadas (automatico)</label><input type="number" id="ci_tarjetasContadas" step="0.01" readonly></div>
               <div class="field"><label id="lbl_cdf">Comprobante de cierre de datafono</label><input type="file" id="ci_comprobanteDatafono" accept="image/*" multiple></div>
             </div>
@@ -671,8 +671,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Hora</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th id="th_lecturaIA">Lectura IA</th><th>Nota</th><th>Foto</th></tr></thead>
-            <tbody id="comp_tbody"><tr><td colspan="8"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <thead><tr><th>Hora</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th id="th_lecturaIA">Lectura IA</th><th>Nota</th><th>Foto</th><th></th></tr></thead>
+            <tbody id="comp_tbody"><tr><td colspan="9"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -697,6 +697,13 @@
             </select>
           </div>
           <div class="field" style="margin-bottom:0"><button class="btn-primary" id="pg_apply" style="width:100%;justify-content:center">Aplicar filtro</button></div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:center;margin-top:2px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin:0">
+            <input type="checkbox" id="pg_mostrarArchivados" style="width:16px;height:16px">
+            Mostrar archivados en las tablas
+          </label>
+          <button type="button" class="btn-ghost" id="pg_archivarBtn" style="justify-content:center">Archivar cierres y comprobantes de este rango</button>
         </div>
       </div>
 
@@ -776,6 +783,18 @@
           <tbody id="pg_compTbody"><tr><td colspan="10"><div class="empty-state">Cargando...</div></td></tr></tbody>
         </table>
       </div>
+
+      <div class="toolbar" style="margin-top:6px">
+        <h3 style="margin:0;color:var(--espresso);font-size:16px;">Comprobantes eliminados (auditoria, no cuentan en nada)</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Motivo</th><th>Eliminado por</th><th>Cuando</th></tr>
+          </thead>
+          <tbody id="pg_compEliminadosTbody"><tr><td colspan="8"><div class="empty-state">Cargando...</div></td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     </div>
@@ -801,6 +820,21 @@
   </div>
 </div>
 
+<!-- Modal para pedir un motivo antes de eliminar un comprobante (cajero al cerrar, o gerencia) -->
+<div class="modal-overlay" id="motivoEliminarModal">
+  <div class="modal-box" style="max-width:420px">
+    <span class="modal-close" id="motivoEliminarClose"></span>
+    <h3>Eliminar comprobante</h3>
+    <p class="muted">Explica brevemente por que se elimina (ej: foto de prueba, transferencia duplicada, cliente se arrepintio, etc). Queda guardado como registro.</p>
+    <textarea id="motivoEliminarTexto" rows="3" placeholder="Motivo de la eliminacion..." style="width:100%;font-family:inherit;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px"></textarea>
+    <p class="muted" id="motivoEliminarError" style="color:var(--danger);display:none;margin-top:6px">Escribe el motivo antes de continuar.</p>
+    <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+      <button type="button" class="btn-ghost" id="motivoEliminarCancelBtn">Cancelar</button>
+      <button type="button" class="btn-primary" id="motivoEliminarConfirmBtn" style="background:var(--danger)">Eliminar comprobante</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para editar un cierre de caja ya guardado, solo disponible desde Panel Gerencial -->
 <div class="modal-overlay" id="editCierreModal">
   <div class="modal-box" style="max-width:680px">
@@ -813,15 +847,15 @@
     </div>
     <div class="form-grid">
       <div class="field"><label>Monto inicial (base de caja)</label><input type="number" id="ec_montoInicial" step="0.01"></div>
-      <div class="field"><label>Efectivo sistema</label><input type="number" id="ec_efectivoSistema" step="0.01"></div>
+      <div class="field"><label>Efectivo (Fudo)</label><input type="number" id="ec_efectivoSistema" step="0.01"></div>
       <div class="field"><label>Efectivo contado</label><input type="number" id="ec_efectivoContado" step="0.01"></div>
     </div>
     <div class="form-grid">
-      <div class="field"><label>Transferencias sistema</label><input type="number" id="ec_transfSistema" step="0.01"></div>
+      <div class="field"><label>Transferencias (Fudo)</label><input type="number" id="ec_transfSistema" step="0.01"></div>
       <div class="field"><label>Transferencias contadas</label><input type="number" id="ec_transfContadas" step="0.01"></div>
     </div>
     <div class="form-grid">
-      <div class="field"><label>Tarjetas sistema</label><input type="number" id="ec_tarjetasSistema" step="0.01"></div>
+      <div class="field"><label>Tarjetas (Fudo)</label><input type="number" id="ec_tarjetasSistema" step="0.01"></div>
       <div class="field"><label>Tarjetas contadas</label><input type="number" id="ec_tarjetasContadas" step="0.01"></div>
     </div>
     <div class="form-grid">
@@ -941,6 +975,8 @@ const RAW_ICONS = {
   lamp: '<path d="M12 2v4"/><path d="M6 10h12l-2 6H8z"/><path d="M9 20h6"/><path d="M10 16l-1 4M14 16l1 4"/>',
   trash: '<path d="M4 7h16"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4h6v3"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  archive: '<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/>',
+  unarchive: '<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M12 17v-4M10 15l2-2 2 2"/>',
   personal: '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
   shield: '<path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
@@ -1022,9 +1058,9 @@ document.getElementById("head_rank").innerHTML = icon("users",17) + "Responsable
 document.getElementById("head_cumpl").innerHTML = icon("checkc",17) + "Cumplimiento operativo";
 document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control de bolsas de seguridad";
 [["lbl_mi","money","Monto inicial (base de caja) *"],
- ["lbl_es","register","Efectivo sistema *"],["lbl_ec","lock","Efectivo contado (automatico)"],
- ["lbl_ts","swap","Transferencias sistema *"],["lbl_tc","swap","Transferencias contadas *"],
- ["lbl_tjs","card","Tarjetas sistema *"],["lbl_tjc","lock","Tarjetas contadas (automatico)"],["lbl_cdf","image","Comprobante de cierre de datafono"],
+ ["lbl_es","register","Efectivo (Fudo) *"],["lbl_ec","lock","Efectivo contado (automatico)"],
+ ["lbl_ts","swap","Transferencias (Fudo) *"],["lbl_tc","lock","Transferencias contadas (automatico)"],
+ ["lbl_tjs","card","Tarjetas (Fudo) *"],["lbl_tjc","lock","Tarjetas contadas (automatico)"],["lbl_cdf","image","Comprobante de cierre de datafono"],
  ["lbl_dp1","card","Datafono 1 Principal"],["lbl_dp2","card","Datafono 2 Principal"],["lbl_da","card","Datafono 3 Alterno"],
  ["lbl_sp","lock","Total Datafono(s) Principal(es) (automatico)"],
  ["lbl_tfp","invoice","Total facturado electronicamente (Datafono Principal) *"],
@@ -1445,7 +1481,7 @@ let comprobantesParaClaim = [];
 function recomputeTransfContadas() {
   if (!ciTransfContadas) return;
   const hoy = todayStr();
-  const deHoy = comprobantesCache.filter(r => r.fecha === hoy && !r.usadoEnCierre && (!currentSede || sedeOf(r) === currentSede));
+  const deHoy = comprobantesCache.filter(r => r.fecha === hoy && !r.usadoEnCierre && !r.eliminado && (!currentSede || sedeOf(r) === currentSede));
   const total = deHoy.reduce((a, r) => a + montoNumComprobante(r), 0);
   ciTransfContadas.value = total;
   comprobantesParaClaim = deHoy.map(r => r.id).filter(Boolean);
@@ -1899,21 +1935,26 @@ function montoComprobante(r) {
 }
 function renderComprobantesTable() {
   const tbody = document.getElementById("comp_tbody");
-  let todays = comprobantesCache.filter(r => r.fecha === todayStr());
+  let todays = comprobantesCache.filter(r => r.fecha === todayStr() && !r.eliminado && !r.archivado);
   if (currentRole !== "gerente" && currentSede) todays = todays.filter(r => sedeOf(r) === currentSede);
   if (!todays.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
     return;
   }
   tbody.innerHTML = todays.map(r => `<tr>
       <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td class="td-lecturaIA">${legiblePill(r)}</td><td>${r.nota || "-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
+      <td><button type="button" class="btn-ghost" data-del-comp-hoy="${r.id}" style="padding:5px 9px" title="Eliminar (con motivo)">${icon("trash",14)}</button></td>
     </tr>`).join("");
   if (!IA_COMPROBANTES_ACTIVA) {
     const th = document.getElementById("th_lecturaIA");
     if (th) th.style.display = "none";
     tbody.querySelectorAll(".td-lecturaIA").forEach(td => td.style.display = "none");
   }
+  tbody.querySelectorAll("button[data-del-comp-hoy]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.delCompHoy;
+    if (id) askMotivoEliminarComprobante(id);
+  }));
 }
 
 document.getElementById("comp_submitBtn").addEventListener("click", async () => {
@@ -2049,7 +2090,7 @@ function renderAlistamientoTable() {
 
 function renderCierreTable() {
   const tbody = document.getElementById("ci_tbody");
-  let rows = cierresCache.map((r, i) => ({ r, i }));
+  let rows = cierresCache.map((r, i) => ({ r, i })).filter(({r}) => !r.archivado);
   if (currentRole !== "gerente" && currentSede) rows = rows.filter(({r}) => sedeOf(r) === currentSede);
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state">Aun no hay cierres registrados.</div></td></tr>';
@@ -2080,6 +2121,52 @@ function openImageLightbox(src) {
 }
 document.getElementById("imgModalClose").addEventListener("click", () => imgModal.classList.remove("show"));
 imgModal.addEventListener("click", (e) => { if (e.target === imgModal) imgModal.classList.remove("show"); });
+
+/* ============================= ELIMINAR COMPROBANTE (con motivo) =============================
+   No se borra el documento: se marca "eliminado" con el motivo, quien y cuando, y desde ese
+   momento se excluye de todas las listas y sumas (Transferencias contadas, Panel Gerencial, etc).
+   Asi queda un rastro por si despues hay que revisar por que se quito una transferencia. */
+let pendingDeleteCompId = null;
+const motivoEliminarModal = document.getElementById("motivoEliminarModal");
+function askMotivoEliminarComprobante(id) {
+  pendingDeleteCompId = id;
+  document.getElementById("motivoEliminarTexto").value = "";
+  document.getElementById("motivoEliminarError").style.display = "none";
+  motivoEliminarModal.classList.add("show");
+  setTimeout(() => document.getElementById("motivoEliminarTexto").focus(), 50);
+}
+function closeMotivoEliminar() {
+  motivoEliminarModal.classList.remove("show");
+  pendingDeleteCompId = null;
+}
+document.getElementById("motivoEliminarClose").addEventListener("click", closeMotivoEliminar);
+document.getElementById("motivoEliminarCancelBtn").addEventListener("click", closeMotivoEliminar);
+motivoEliminarModal.addEventListener("click", (e) => { if (e.target === motivoEliminarModal) closeMotivoEliminar(); });
+document.getElementById("motivoEliminarConfirmBtn").addEventListener("click", async () => {
+  const motivo = document.getElementById("motivoEliminarTexto").value.trim();
+  if (!motivo) {
+    document.getElementById("motivoEliminarError").style.display = "block";
+    return;
+  }
+  if (!pendingDeleteCompId) { closeMotivoEliminar(); return; }
+  const btn = document.getElementById("motivoEliminarConfirmBtn");
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, COL_COMPROBANTES, pendingDeleteCompId), {
+      eliminado: true,
+      motivoEliminacion: motivo,
+      eliminadoPor: document.getElementById("userName") ? document.getElementById("userName").textContent : "Caja",
+      eliminadoEn: serverTimestamp(),
+    });
+    toast("Comprobante eliminado.");
+    closeMotivoEliminar();
+  } catch (err) {
+    toast("No se pudo eliminar. Revisa tu conexion.", true);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 /* ============================= EDITAR CIERRE (solo Panel Gerencial) ============================= */
 let editingCierreId = null;
@@ -2195,12 +2282,12 @@ function openCierreDetail(r) {
     <div class="detail-grid">
       ${detailRow("Datafonos con movimiento", datafonosPillList(cierreDatafonosActivos(r)))}
       ${detailRow("Monto inicial (base de caja)", r.montoInicial != null ? fmtMoney(r.montoInicial) : "N/A")}
-      ${detailRow("Efectivo sistema / contado", fmtMoney(r.efectivoSistema) + " / " + fmtMoney(r.efectivoContado))}
+      ${detailRow("Efectivo (Fudo) / contado", fmtMoney(r.efectivoSistema) + " / " + fmtMoney(r.efectivoContado))}
       ${detailRow("Efectivo esperado (base + ventas - gastos)", r.efectivoEsperado != null ? fmtMoney(r.efectivoEsperado) : "N/A")}
       ${detailRow("Diferencia efectivo", fmtMoney(r.diferenciaEfectivo))}
-      ${detailRow("Transferencias sistema / contadas", fmtMoney(r.transferenciasSistema) + " / " + fmtMoney(r.transferenciasContadas))}
+      ${detailRow("Transferencias (Fudo) / contadas", fmtMoney(r.transferenciasSistema) + " / " + fmtMoney(r.transferenciasContadas))}
       ${detailRow("Diferencia transferencias", fmtMoney(r.diferenciaTransferencias))}
-      ${detailRow("Tarjetas sistema / contadas", fmtMoney(r.tarjetasSistema) + " / " + fmtMoney(r.tarjetasContadas))}
+      ${detailRow("Tarjetas (Fudo) / contadas", fmtMoney(r.tarjetasSistema) + " / " + fmtMoney(r.tarjetasContadas))}
       ${detailRow("Diferencia tarjetas", fmtMoney(r.diferenciaTarjetas))}
       ${detailRow("Datafono 1 Principal (monto)", r.datafonoP1 != null ? fmtMoney(r.datafonoP1) : "N/A")}
       ${detailRow("Datafono 2 Principal (monto)", r.datafonoP2 != null ? fmtMoney(r.datafonoP2) : "N/A")}
@@ -2219,6 +2306,7 @@ function openCierreDetail(r) {
     ${(r.gastosDetalle && r.gastosDetalle.length) ? `<div class="table-wrap" style="max-height:200px;margin-top:10px"><table><thead><tr><th>Proveedor</th><th>Categoria</th><th>Comentario</th><th>Importe</th></tr></thead><tbody>${r.gastosDetalle.map(g => `<tr><td>${g.proveedor||"-"}</td><td>${g.categoria||"-"}</td><td>${g.comentario||"-"}</td><td>${fmtMoney(g.importe)}</td></tr>`).join("")}</tbody></table></div>` : ""}
     ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
     ${r.editadoEn ? `<p class="muted" style="margin-top:6px">${icon("edit",12)} Editado por ${r.editadoPor || "Gerencia"} · ${fmtDate(r.editadoEn)}</p>` : ""}
+    ${r.archivado ? `<p class="muted" style="margin-top:6px">${icon("archive",12)} Archivado por ${r.archivadoPor || "Gerencia"} · ${fmtDate(r.archivadoEn)}</p>` : ""}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
   `;
   detailModal.classList.add("show");
@@ -2300,14 +2388,44 @@ document.getElementById("pg_to").value = todayStr();
 document.getElementById("pg_from").value = (() => { const d = new Date(); d.setDate(d.getDate()-29); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; })();
 document.getElementById("pg_apply").addEventListener("click", renderPanelGerencial);
 document.getElementById("pg_sede").addEventListener("change", renderPanelGerencial);
+document.getElementById("pg_mostrarArchivados").addEventListener("change", renderPanelGerencial);
+document.getElementById("pg_archivarBtn").innerHTML = icon("archive", 15) + "Archivar cierres y comprobantes de este rango";
+document.getElementById("pg_archivarBtn").addEventListener("click", async () => {
+  const cierresAArchivar = filteredCierres().filter(r => !r.archivado);
+  const compAArchivar = filteredComprobantes().filter(r => !r.archivado);
+  const total = cierresAArchivar.length + compAArchivar.length;
+  if (!total) { toast("No hay nada nuevo para archivar en este rango."); return; }
+  if (!confirm(`Se archivaran ${cierresAArchivar.length} cuadre(s) de caja y ${compAArchivar.length} comprobante(s) del rango filtrado (con su sede).\n\nLa informacion sigue contando en los totales y reportes, solo se oculta de las tablas. ¿Continuar?`)) return;
+  const btn = document.getElementById("pg_archivarBtn");
+  btn.disabled = true;
+  try {
+    const quien = document.getElementById("userName") ? document.getElementById("userName").textContent : "Gerencia";
+    await Promise.all([
+      ...cierresAArchivar.map(r => updateDoc(doc(db, COL_CIERRE, r.id), { archivado: true, archivadoEn: serverTimestamp(), archivadoPor: quien }).catch(err => console.error(err))),
+      ...compAArchivar.map(r => updateDoc(doc(db, COL_COMPROBANTES, r.id), { archivado: true, archivadoEn: serverTimestamp(), archivadoPor: quien }).catch(err => console.error(err))),
+    ]);
+    toast(`Archivado: ${cierresAArchivar.length} cuadre(s) y ${compAArchivar.length} comprobante(s).`);
+  } catch (err) {
+    toast("No se pudo archivar todo. Revisa tu conexion.", true);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function pgSedeVal() { const el = document.getElementById("pg_sede"); return el ? el.value : ""; }
+function pgMostrarArchivados() { const el = document.getElementById("pg_mostrarArchivados"); return el ? el.checked : false; }
 function filteredCierres() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
   const sede = pgSedeVal();
   return cierresCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sede || sedeOf(r) === sede));
 }
+/* Los "archivados" siguen contando en KPIs/graficas/rankings (por eso filteredCierres() y
+   filteredComprobantes() los incluyen sin problema); estas dos funciones son solo para decidir
+   que filas se PINTAN en las tablas del Panel Gerencial, respetando el check "Mostrar archivados". */
+function visibleCierres(rows) { return pgMostrarArchivados() ? rows : rows.filter(r => !r.archivado); }
+function visibleComprobantes(rows) { return pgMostrarArchivados() ? rows : rows.filter(r => !r.archivado); }
 function filteredAlistamientos() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
@@ -2318,7 +2436,9 @@ function filteredComprobantes() {
   const from = document.getElementById("pg_from").value;
   const to = document.getElementById("pg_to").value;
   const sede = pgSedeVal();
-  return comprobantesCache.filter(r => r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sede || sedeOf(r) === sede));
+  // Los "eliminados" (con motivo) nunca cuentan en nada, en ningun lado: son datos incorrectos,
+  // no historia valida. Los "archivados" si siguen contando (ver visibleComprobantes).
+  return comprobantesCache.filter(r => r.fecha && !r.eliminado && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sede || sedeOf(r) === sede));
 }
 
 function kpiCard(label, value, sub, accent) {
@@ -2331,7 +2451,7 @@ function renderBolsasSeguridad() {
   // NO se limita al rango de fechas del panel: una bolsa pendiente de hace tiempo no debe
   // desaparecer solo porque el filtro de fechas no la cubre.
   const sede = pgSedeVal();
-  const rows = cierresCache.filter(r => (Number(r.bolsaSeguridad) || 0) > 0 && (!sede || sedeOf(r) === sede));
+  const rows = cierresCache.filter(r => (Number(r.bolsaSeguridad) || 0) > 0 && !r.archivado && (!sede || sedeOf(r) === sede));
   const pendientes = rows.filter(r => !r.bolsaRecibida);
   const recibidas = rows.filter(r => r.bolsaRecibida);
   const totalPendiente = pendientes.reduce((a, r) => a + (Number(r.bolsaSeguridad) || 0), 0);
@@ -2540,7 +2660,7 @@ function renderPanelGerencial() {
     </div>`;
 
   // Tabla de problematicos
-  const problematicos = rows.filter(r => (r.diferenciaEfectivo||0)!==0 || (r.diferenciaTransferencias||0)!==0 || (r.diferenciaTarjetas||0)!==0 || r.verifPrincipales === "No coincide" || r.verifP1 === "No coincide" || r.verifP2 === "No coincide" || r.verifTransferencias === "No coincide");
+  const problematicos = visibleCierres(rows).filter(r => (r.diferenciaEfectivo||0)!==0 || (r.diferenciaTransferencias||0)!==0 || (r.diferenciaTarjetas||0)!==0 || r.verifPrincipales === "No coincide" || r.verifP1 === "No coincide" || r.verifP2 === "No coincide" || r.verifTransferencias === "No coincide");
   const tbody = document.getElementById("pg_tbody");
   const diffSpan = v => `<span class="${(v||0)===0?'diff-ok':'diff-bad'}">${fmtMoney(v)}</span>`;
   tbody.innerHTML = problematicos.length ? problematicos.map((r,i) => `<tr class="clickable" data-pg="${cierresCache.indexOf(r)}">
@@ -2555,9 +2675,9 @@ function renderPanelGerencial() {
 
   // Historico completo de cuadres de caja en el rango filtrado (no solo los que tienen diferencia)
   const cierresTbody = document.getElementById("pg_cierresTbody");
-  const rowsOrdenadas = [...rows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  const rowsOrdenadas = [...visibleCierres(rows)].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   cierresTbody.innerHTML = rowsOrdenadas.length ? rowsOrdenadas.map(r => `<tr class="clickable" data-pgc="${cierresCache.indexOf(r)}">
-      <td>${r.fecha||"-"}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable||"-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
+      <td>${r.fecha||"-"}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable||"-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
       <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
       <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
       <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
@@ -2565,6 +2685,7 @@ function renderPanelGerencial() {
       <td style="white-space:nowrap">
         <button type="button" class="btn-ghost" data-detail-ci="${cierresCache.indexOf(r)}" style="padding:5px 8px" title="Ver detalle">${icon("eye",14)}</button>
         <button type="button" class="btn-ghost" data-edit-ci="${r.id}" style="padding:5px 8px" title="Editar">${icon("edit",14)}</button>
+        <button type="button" class="btn-ghost" data-arch-ci="${r.id}" data-arch-val="${r.archivado ? "0" : "1"}" style="padding:5px 8px" title="${r.archivado ? "Desarchivar" : "Archivar"}">${icon(r.archivado ? "unarchive" : "archive",14)}</button>
         <button type="button" class="btn-ghost" data-del-ci="${r.id}" style="padding:5px 8px" title="Eliminar">${icon("trash",14)}</button>
       </td>
     </tr>`).join("") : '<tr><td colspan="10"><div class="empty-state">Sin cuadres de caja en el rango.</div></td></tr>';
@@ -2576,6 +2697,23 @@ function renderPanelGerencial() {
     e.stopPropagation();
     const r = cierresCache.find(c => c.id === btn.dataset.editCi);
     if (r) openEditCierre(r);
+  }));
+  cierresTbody.querySelectorAll("button[data-arch-ci]").forEach(btn => btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.archCi;
+    const val = btn.dataset.archVal === "1";
+    if (!id) return;
+    btn.disabled = true;
+    try {
+      await updateDoc(doc(db, COL_CIERRE, id), val
+        ? { archivado: true, archivadoEn: serverTimestamp(), archivadoPor: document.getElementById("userName") ? document.getElementById("userName").textContent : "Gerencia" }
+        : { archivado: false, archivadoEn: null, archivadoPor: null });
+      toast(val ? "Cuadre archivado." : "Cuadre desarchivado.");
+    } catch (err) {
+      toast("No se pudo actualizar. Revisa tu conexion.", true);
+      console.error(err);
+      btn.disabled = false;
+    }
   }));
   cierresTbody.querySelectorAll("button[data-del-ci]").forEach(btn => btn.addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -2602,30 +2740,54 @@ function renderPanelGerencial() {
 
   // Historico completo de comprobantes de transferencia en el rango filtrado (no solo los de hoy)
   const compTbody = document.getElementById("pg_compTbody");
-  const compOrdenados = [...compRows].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  const compOrdenados = [...visibleComprobantes(compRows)].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   const totalCompMonto = compRows.reduce((a,r)=>a+montoNumComprobante(r),0);
   compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td>
+      <td>${fmtDate(r.creadoEn)}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td>
       <td>${r.usadoEnCierre ? '<span class="pill ok">Contado</span>' : '<span class="pill off">Sin usar</span>'}</td>
       <td>${r.nota||"-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
-      <td><button type="button" class="btn-ghost" data-del-comp="${r.id}" style="padding:5px 9px">${icon("trash",14)}</button></td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn-ghost" data-arch-comp="${r.id}" data-arch-val="${r.archivado ? "0" : "1"}" style="padding:5px 8px" title="${r.archivado ? "Desarchivar" : "Archivar"}">${icon(r.archivado ? "unarchive" : "archive",14)}</button>
+        <button type="button" class="btn-ghost" data-del-comp="${r.id}" style="padding:5px 9px" title="Eliminar">${icon("trash",14)}</button>
+      </td>
     </tr>`).join("") + `<tr style="font-weight:800;background:var(--cream)"><td colspan="4">Total</td><td>${fmtMoney(totalCompMonto)}</td><td></td><td></td><td></td><td></td><td></td></tr>`
     : '<tr><td colspan="10"><div class="empty-state">Sin comprobantes en el rango.</div></td></tr>';
-  compTbody.querySelectorAll("button[data-del-comp]").forEach(btn => btn.addEventListener("click", async () => {
+  compTbody.querySelectorAll("button[data-del-comp]").forEach(btn => btn.addEventListener("click", () => {
     const id = btn.dataset.delComp;
+    if (id) askMotivoEliminarComprobante(id);
+  }));
+  compTbody.querySelectorAll("button[data-arch-comp]").forEach(btn => btn.addEventListener("click", async () => {
+    const id = btn.dataset.archComp;
+    const val = btn.dataset.archVal === "1";
     if (!id) return;
-    if (!confirm("¿Eliminar este comprobante? Esta accion no se puede deshacer.")) return;
     btn.disabled = true;
     try {
-      await deleteDoc(doc(db, COL_COMPROBANTES, id));
-      toast("Comprobante eliminado.");
+      await updateDoc(doc(db, COL_COMPROBANTES, id), val
+        ? { archivado: true, archivadoEn: serverTimestamp(), archivadoPor: document.getElementById("userName") ? document.getElementById("userName").textContent : "Gerencia" }
+        : { archivado: false, archivadoEn: null, archivadoPor: null });
+      toast(val ? "Comprobante archivado." : "Comprobante desarchivado.");
     } catch (err) {
-      toast("No se pudo eliminar. Revisa tu conexion.", true);
+      toast("No se pudo actualizar. Revisa tu conexion.", true);
       console.error(err);
       btn.disabled = false;
     }
   }));
+
+  // Auditoria: comprobantes eliminados en el mismo rango/sede (estos nunca cuentan en nada,
+  // solo quedan aqui para poder revisar por que se quitaron).
+  const from = document.getElementById("pg_from").value;
+  const to = document.getElementById("pg_to").value;
+  const sedeF = pgSedeVal();
+  const eliminados = comprobantesCache.filter(r => r.eliminado && r.fecha && (!from || r.fecha >= from) && (!to || r.fecha <= to) && (!sedeF || sedeOf(r) === sedeF))
+    .sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
+  const elimTbody = document.getElementById("pg_compEliminadosTbody");
+  if (elimTbody) {
+    elimTbody.innerHTML = eliminados.length ? eliminados.map(r => `<tr>
+        <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td>
+        <td>${r.motivoEliminacion||"-"}</td><td>${r.eliminadoPor||"-"}</td><td>${fmtDate(r.eliminadoEn)}</td>
+      </tr>`).join("") : '<tr><td colspan="8"><div class="empty-state">No hay comprobantes eliminados en el rango.</div></td></tr>';
+  }
 }
 document.getElementById("bellBtn").addEventListener("click", () => { if (currentRole==="gerente") document.getElementById("navPanel").click(); });
 
@@ -2655,9 +2817,9 @@ document.getElementById("btnExportCierre").addEventListener("click", () => {
   const columns = [
     { header: "Fecha", key: "fecha" }, { header: "Sede", key: "sede" }, { header: "Responsable", key: "responsable" }, { header: "Datafonos con movimiento", key: "datafonos" },
     { header: "Monto inicial", key: "mi" },
-    { header: "Efectivo sistema", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Efectivo esperado", key: "ee" }, { header: "Dif. efectivo", key: "de" },
-    { header: "Transf. sistema", key: "ts" }, { header: "Transf. contadas", key: "tc" }, { header: "Dif. transf.", key: "dt" },
-    { header: "Tarjetas sistema", key: "tjs" }, { header: "Tarjetas contadas", key: "tjc" }, { header: "Dif. tarjetas", key: "dtj" },
+    { header: "Efectivo (Fudo)", key: "es" }, { header: "Efectivo contado", key: "ec" }, { header: "Efectivo esperado", key: "ee" }, { header: "Dif. efectivo", key: "de" },
+    { header: "Transf. (Fudo)", key: "ts" }, { header: "Transf. contadas", key: "tc" }, { header: "Dif. transf.", key: "dt" },
+    { header: "Tarjetas (Fudo)", key: "tjs" }, { header: "Tarjetas contadas", key: "tjc" }, { header: "Dif. tarjetas", key: "dtj" },
     { header: "Datafono P1", key: "dp1" }, { header: "Datafono P2", key: "dp2" }, { header: "Datafono Alterno", key: "da" },
     { header: "Suma Datafono Principal", key: "sp" }, { header: "Facturado Principal", key: "fp" }, { header: "Verif. Principal", key: "vp" },
     { header: "Anticipos", key: "anti" }, { header: "Bonos regalo", key: "bono" }, { header: "Cortesia", key: "cort" }, { header: "Credito", key: "cred" },
