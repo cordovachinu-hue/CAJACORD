@@ -1016,6 +1016,18 @@ function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 }
+/* "Dia operativo" para comprobantes de transferencia: el servicio a veces se extiende despues
+   de medianoche y el cierre de caja se hace ya entrada la madrugada, asi que un comprobante
+   cargado hasta las 5:00am todavia cuenta como del dia anterior (el mismo turno que sigue
+   abierto). Aplica igual para Monteria y Chinu. Esto NO afecta alistamientos ni la fecha del
+   formulario de cierre, solo a que dia se le atribuye cada comprobante. */
+function businessDateStr(sede) {
+  const d = new Date();
+  if (d.getHours() < 5) {
+    d.setDate(d.getDate() - 1);
+  }
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
 function dateKeyFromTs(ts) {
   if (!ts || !ts.toDate) return null;
   const d = ts.toDate();
@@ -1480,7 +1492,7 @@ let comprobantesParaClaim = [];
 
 function recomputeTransfContadas() {
   if (!ciTransfContadas) return;
-  const hoy = todayStr();
+  const hoy = businessDateStr(currentSede);
   const deHoy = comprobantesCache.filter(r => r.fecha === hoy && !r.usadoEnCierre && !r.eliminado && (!currentSede || sedeOf(r) === currentSede));
   const total = deHoy.reduce((a, r) => a + montoNumComprobante(r), 0);
   ciTransfContadas.value = total;
@@ -1935,7 +1947,7 @@ function montoComprobante(r) {
 }
 function renderComprobantesTable() {
   const tbody = document.getElementById("comp_tbody");
-  let todays = comprobantesCache.filter(r => r.fecha === todayStr() && !r.eliminado && !r.archivado);
+  let todays = comprobantesCache.filter(r => r.fecha === businessDateStr(currentSede) && !r.eliminado && !r.archivado);
   if (currentRole !== "gerente" && currentSede) todays = todays.filter(r => sedeOf(r) === currentSede);
   if (!todays.length) {
     tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
@@ -1978,7 +1990,7 @@ document.getElementById("comp_submitBtn").addEventListener("click", async () => 
       monto: montoVal ? Number(montoVal) : null,
       nota: document.getElementById("comp_nota").value.trim(),
       foto: fotoArr[0] || null,
-      fecha: todayStr(),
+      fecha: businessDateStr(currentSede),
       sede: currentSede,
       rol: currentRole,
       legibleIA: lectura ? lectura.legible : null,
