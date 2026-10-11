@@ -648,8 +648,8 @@
           </select>
         </div>
         <div class="field">
-          <label id="lbl_compMonto">Monto de la transferencia</label>
-          <input type="number" id="comp_monto" step="0.01" placeholder="Opcional">
+          <label id="lbl_compMonto">Monto de la transferencia <span class="req">*</span></label>
+          <input type="number" id="comp_monto" step="0.01" min="1" placeholder="Ej: 45000" required>
         </div>
         <div class="field">
           <label id="lbl_compFoto">Foto del comprobante <span class="req">*</span></label>
@@ -671,8 +671,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Hora</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th id="th_lecturaIA">Lectura IA</th><th>Nota</th><th>Foto</th><th></th></tr></thead>
-            <tbody id="comp_tbody"><tr><td colspan="9"><div class="empty-state">Cargando...</div></td></tr></tbody>
+            <thead><tr><th>Hora</th><th>Sede</th><th>Mesa</th><th>Nombre</th><th>Monto</th><th>Nota</th><th>Foto</th><th></th></tr></thead>
+            <tbody id="comp_tbody"><tr><td colspan="8"><div class="empty-state">Cargando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1081,7 +1081,7 @@ document.getElementById("head_bolsas").innerHTML = icon("shield",17) + "Control 
  ["lbl_ga","image","Reporte de gastos de Fudo (.xlsx)"],["lbl_gc","lock","Gastos de caja (automatico)"],
  ["lbl_bs","shield","Cuanto guardas en bolsa de seguridad *"],
  ["lbl_compMesa","table","Mesa *"],
- ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia"],
+ ["lbl_compNombre","users","Nombre de quien recibe *"],["lbl_compMonto","money","Monto de la transferencia *"],
  ["lbl_compFoto","camera","Foto del comprobante *"],["lbl_compNota","invoice","Nota"]
 ].forEach(([id, ic, txt]) => {
   const reqIdx = txt.indexOf(" *");
@@ -1402,28 +1402,44 @@ async function filesToBase64(inputEl, maxFiles) {
   return out;
 }
 
-/* ============================= LECTURA DE COMPROBANTES CON IA ============================= */
-/* Activada: api/leer-comprobante.js ya esta desplegado en Vercel y ANTHROPIC_API_KEY
-   quedo configurada (3 ago 2026). Si vuelve a fallar por "error de conexion", revisar
-   en Vercel -> Deployments -> Logs de la funcion /api/leer-comprobante. */
-const IA_COMPROBANTES_ACTIVA = true;
-async function leerComprobanteIA(dataUri) {
-  if (!IA_COMPROBANTES_ACTIVA) return null;
+/* La lectura de comprobantes con IA fue retirada: el monto lo digita el mesero. Los
+   comprobantes viejos que ya tenian monto leido por IA (montoIA) lo conservan para que los
+   totales historicos no cambien. */
+
+/* ============================= RESPALDO AUTOMATICO EN GOOGLE DRIVE ============================= */
+/* Apenas se sube un comprobante, se manda una copia a Google Drive (organizada por dia y
+   sede) y se agrega una fila en la hoja de calculo diaria de ese dia. Si esto falla (por
+   ejemplo, si todavia no se configuro api/comprobante-drive.js en Vercel), el comprobante
+   igual queda guardado normal en la app: este respaldo es un "extra", nunca debe bloquear
+   ni dañar el registro principal. */
+const DRIVE_BACKUP_ACTIVA = true;
+async function subirComprobanteADrive({ fecha, sede, mesa, mesero, monto, fuente, hora, fotoBase64, mediaType }) {
+  if (!DRIVE_BACKUP_ACTIVA || !fotoBase64) return null;
   try {
-    const m = /^data:([^;]+);base64,(.*)$/.exec(dataUri || "");
-    if (!m) return null;
-    const resp = await fetch("/api/leer-comprobante", {
+    const resp = await fetch("/api/comprobante-drive", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ imageBase64: m[2], mediaType: m[1] }),
+      body: JSON.stringify({ accion: "subir", fecha, sede, mesa, mesero, monto, fuente, hora, fotoBase64, mediaType }),
     });
     if (!resp.ok) return null;
     const out = await resp.json();
-    if (out && out.error) return null;
+    if (out && out.error) { console.error("Respaldo a Drive:", out.error); return null; }
     return out;
   } catch (err) {
-    console.error("Lectura IA no disponible:", err);
+    console.error("Respaldo a Drive no disponible:", err);
     return null;
+  }
+}
+async function marcarEstadoDrive(r, estado) {
+  if (!DRIVE_BACKUP_ACTIVA || !r || !r.driveSpreadsheetId || !r.driveSheetRow) return;
+  try {
+    await fetch("/api/comprobante-drive", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accion: "marcarEstado", driveSpreadsheetId: r.driveSpreadsheetId, driveSheetRow: r.driveSheetRow, estado }),
+    });
+  } catch (err) {
+    console.error("No se pudo actualizar el estado en Drive:", err);
   }
 }
 
@@ -1505,7 +1521,7 @@ function recomputeTransfContadas() {
   if (nota) {
     if (deHoy.length) {
       nota.style.display = "block";
-      nota.innerHTML = icon("checkc", 12) + ` ${deHoy.length} comprobantes nuevos de hoy: ${porIA} leidos por IA, ${porMesero} con el monto del mesero` + (sinMonto ? `, ${sinMonto} sin monto (no suman)` : "") + (yaContados ? `. (${yaContados} ya se contaron en un cierre anterior de hoy y no se repiten)` : "") + ".";
+      nota.innerHTML = icon("checkc", 12) + ` ${deHoy.length} comprobantes nuevos de hoy: ${porIA + porMesero} con monto del mesero` + (sinMonto ? `, ${sinMonto} sin monto (no suman)` : "") + (yaContados ? `. (${yaContados} ya se contaron en un cierre anterior de hoy y no se repiten)` : "") + ".";
     } else if (yaContados) {
       nota.style.display = "block";
       nota.innerHTML = icon("checkc", 12) + ` No hay comprobantes nuevos: los ${yaContados} de hoy ya se contaron en un cierre anterior.`;
@@ -1825,6 +1841,11 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       await Promise.all(comprobantesParaClaim.map(cid =>
         updateDoc(doc(db, COL_COMPROBANTES, cid), { usadoEnCierre: nuevoCierre.id }).catch(err => console.error("No se pudo marcar comprobante", cid, err))
       ));
+      // Refleja el mismo cambio en la hoja de Drive (si el comprobante alcanzo a respaldarse ahi).
+      comprobantesParaClaim.forEach(cid => {
+        const r = comprobantesCache.find(c => c.id === cid);
+        if (r) marcarEstadoDrive(r, `Contado (${data.responsable || "Gerencia"} - ${data.fecha})`);
+      });
       comprobantesParaClaim = [];
     }
     statusEl.textContent = "";
@@ -1922,11 +1943,6 @@ function updateResponsablesList() {
 }
 updateResponsablesList();
 
-function legiblePill(r) {
-  if (r.legibleIA === true) return '<span class="pill ok">' + icon("checkc", 12) + 'Legible</span>';
-  if (r.legibleIA === false) return '<span class="pill warn">' + icon("alert", 12) + 'No legible</span>';
-  return '<span class="pill off">Sin leer</span>';
-}
 function montoNumComprobante(r) {
   if (r.legibleIA === true && r.montoIA != null) return Number(r.montoIA) || 0;
   if (r.monto != null) return Number(r.monto) || 0;
@@ -1950,19 +1966,14 @@ function renderComprobantesTable() {
   let todays = comprobantesCache.filter(r => r.fecha === businessDateStr(currentSede) && !r.eliminado && !r.archivado);
   if (currentRole !== "gerente" && currentSede) todays = todays.filter(r => sedeOf(r) === currentSede);
   if (!todays.length) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Aun no hay comprobantes hoy.</div></td></tr>';
     return;
   }
   tbody.innerHTML = todays.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td class="td-lecturaIA">${legiblePill(r)}</td><td>${r.nota || "-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td>${r.nota || "-"}</td>
       <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
       <td><button type="button" class="btn-ghost" data-del-comp-hoy="${r.id}" style="padding:5px 9px" title="Eliminar (con motivo)">${icon("trash",14)}</button></td>
     </tr>`).join("");
-  if (!IA_COMPROBANTES_ACTIVA) {
-    const th = document.getElementById("th_lecturaIA");
-    if (th) th.style.display = "none";
-    tbody.querySelectorAll(".td-lecturaIA").forEach(td => td.style.display = "none");
-  }
   tbody.querySelectorAll("button[data-del-comp-hoy]").forEach(btn => btn.addEventListener("click", () => {
     const id = btn.dataset.delCompHoy;
     if (id) askMotivoEliminarComprobante(id);
@@ -1974,44 +1985,58 @@ document.getElementById("comp_submitBtn").addEventListener("click", async () => 
   const mesa = document.getElementById("comp_mesa").value;
   const nombre = document.getElementById("comp_nombre").value.trim();
   const fotoInput = document.getElementById("comp_foto");
-  if (!mesa || !nombre || !fotoInput.files.length) {
-    toast("Falta la mesa, el nombre o la foto del comprobante.", true);
+  const montoVal = document.getElementById("comp_monto").value;
+  if (!mesa || !nombre || !fotoInput.files.length || !montoVal || Number(montoVal) <= 0) {
+    toast("Falta la mesa, el nombre, el monto o la foto del comprobante.", true);
     return;
   }
   try {
     statusEl.textContent = "Guardando...";
     const fotoArr = await filesToBase64(fotoInput, 1);
-    const montoVal = document.getElementById("comp_monto").value;
-    if (IA_COMPROBANTES_ACTIVA) statusEl.textContent = "Leyendo comprobante...";
-    const lectura = fotoArr[0] ? await leerComprobanteIA(fotoArr[0]) : null;
     const data = {
       mesa: mesa,
       mesero: nombre,
-      monto: montoVal ? Number(montoVal) : null,
+      monto: Number(montoVal),
       nota: document.getElementById("comp_nota").value.trim(),
       foto: fotoArr[0] || null,
       fecha: businessDateStr(currentSede),
       sede: currentSede,
       rol: currentRole,
-      legibleIA: lectura ? lectura.legible : null,
-      montoIA: lectura ? lectura.monto : null,
-      entidadIA: lectura ? lectura.entidad : null,
-      fechaIA: lectura ? lectura.fecha : null,
-      referenciaIA: lectura ? lectura.referencia : null,
       creadoPor: auth.currentUser ? auth.currentUser.uid : null,
       creadoEn: serverTimestamp(),
     };
-    await addDoc(collection(db, COL_COMPROBANTES), data);
+    const nuevoRef = await addDoc(collection(db, COL_COMPROBANTES), data);
     statusEl.textContent = "";
     document.getElementById("comp_mesa").value = "";
     document.getElementById("comp_nombre").value = "";
     document.getElementById("comp_monto").value = "";
     document.getElementById("comp_nota").value = "";
     fotoInput.value = "";
-    if (lectura && lectura.legible === false) {
-      toast("Comprobante guardado, pero la foto no se leyo bien. Revisala en Cierre.", true);
-    } else {
-      toast("Comprobante guardado.");
+    toast("Comprobante guardado.");
+    // Respaldo a Google Drive: se hace despues, sin bloquear ni retrasar al mesero.
+    // Si falla (o no esta configurado), el comprobante ya quedo guardado bien de todas formas.
+    if (fotoArr[0]) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(fotoArr[0]);
+      const ahora = new Date();
+      subirComprobanteADrive({
+        fecha: data.fecha,
+        sede: data.sede,
+        mesa: data.mesa,
+        mesero: data.mesero,
+        monto: montoNumComprobante(data),
+        fuente: "Mesero",
+        hora: `${pad2(ahora.getHours())}:${pad2(ahora.getMinutes())}`,
+        fotoBase64: m ? m[2] : null,
+        mediaType: m ? m[1] : "image/jpeg",
+      }).then(out => {
+        if (out && out.driveSpreadsheetId && out.driveSheetRow) {
+          updateDoc(doc(db, COL_COMPROBANTES, nuevoRef.id), {
+            driveFileLink: out.driveFileLink || null,
+            driveSpreadsheetId: out.driveSpreadsheetId,
+            driveSheetRow: out.driveSheetRow,
+          }).catch(err => console.error("No se pudo guardar la referencia de Drive:", err));
+        }
+      });
     }
   } catch (err) {
     statusEl.textContent = "";
@@ -2585,7 +2610,7 @@ function renderPanelGerencial() {
     kpiCard("Datafono / tarjetas", pctTarjetas + "%", "Meta: maximo " + META_DATAFONO_PCT + "% de las ventas", metaSuperada) +
     kpiCard("Turnos con datafono alterno", turnosAlterno) +
     kpiCard("Comprobantes de transferencia", compRows.length, "Fotos registradas en el rango") +
-    kpiCard("Total comprobantes", fmtMoney(compRows.reduce((a,r)=>a+montoNumComprobante(r),0)), IA_COMPROBANTES_ACTIVA ? "Suma de montos leidos por IA / digitados" : "Suma de montos digitados (activa la lectura IA para que se complete sola)");
+    kpiCard("Total comprobantes", fmtMoney(compRows.reduce((a,r)=>a+montoNumComprobante(r),0)), "Suma de los montos digitados por los meseros");
 
   renderBolsasSeguridad();
   renderMetaAlerta();
@@ -2739,6 +2764,7 @@ function renderPanelGerencial() {
       const usados = comprobantesCache.filter(c => c.usadoEnCierre === id);
       if (usados.length) {
         await Promise.all(usados.map(c => updateDoc(doc(db, COL_COMPROBANTES, c.id), { usadoEnCierre: null }).catch(err => console.error(err))));
+        usados.forEach(c => marcarEstadoDrive(c, "Sin usar"));
       }
       await deleteDoc(doc(db, COL_CIERRE, id));
       toast("Cuadre de caja eliminado" + (usados.length ? " y sus comprobantes quedaron disponibles de nuevo." : "."));
