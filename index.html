@@ -895,7 +895,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, signInAnonymously, onAuthStateChanged
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc
@@ -931,13 +931,13 @@ document.getElementById("logoHome").src = LOGO_SRC;
 document.getElementById("logoSidebar").src = LOGO_SRC;
 
 const META_DATAFONO_PCT = 35; // meta: pagos con datafono/tarjetas no deben superar este % de las ventas
-/* Gerencia ve el consolidado de ambas sedes con un solo PIN. Caja y Mesero eligen su sede
-   al entrar y usan el PIN de esa sede. */
-const PIN_GERENTE = "200810143037";
-const PINS_POR_SEDE = {
-  monteria: { caja: "5050", mesero: "4567" },
-  chinu: { caja: "2029", mesero: "4545" },
-};
+/* SEGURIDAD: los codigos YA NO estan escritos en este archivo. Cada rol y sede es una
+   cuenta de Firebase (Authentication) y el codigo que se escribe es la contrasena de esa
+   cuenta: Firebase la verifica en sus servidores. Para cambiar un codigo: Firebase console
+   -> controlcord -> Authentication -> Usuarios -> (cuenta) -> Restablecer contrasena.
+   Gerencia ve el consolidado de ambas sedes. */
+const DOMINIO_CUENTAS = "@cordovapro.local";
+function cuentaDe(rol, sede) { return (rol === "gerente" ? "gerente" : rol + "-" + sede) + DOMINIO_CUENTAS; }
 const SEDE_LABELS = { monteria: "Monteria", chinu: "Chinu" };
 // Los registros creados antes de activar multi-sede no tienen campo "sede" guardado.
 // Como la app solo operaba en Monteria antes de esto, esos registros viejos se tratan como Monteria
@@ -1128,12 +1128,21 @@ document.querySelectorAll(".home-card").forEach(card => {
 document.getElementById("pinModalClose").addEventListener("click", () => pinModal.classList.remove("show"));
 pinModal.addEventListener("click", (e) => { if (e.target === pinModal) pinModal.classList.remove("show"); });
 
-function tryEnterRole() {
-  if (!pendingRole) return;
+let entrando = false;
+async function tryEnterRole() {
+  if (!pendingRole || entrando) return;
   const val = document.getElementById("pinModalInput").value.trim();
   const sedeSel = pendingRole === "gerente" ? null : document.getElementById("pinModalSede").value;
-  const correctPin = pendingRole === "gerente" ? PIN_GERENTE : PINS_POR_SEDE[sedeSel][pendingRole];
-  if (val === correctPin) {
+  const errEl = document.getElementById("pinModalError");
+  if (!val) { errEl.textContent = "Escribe el codigo."; return; }
+  entrando = true;
+  const btn = document.getElementById("pinModalBtn");
+  if (btn) btn.disabled = true;
+  errEl.textContent = "Verificando...";
+  try {
+    stopListeners();
+    await signInWithEmailAndPassword(auth, cuentaDe(pendingRole, sedeSel), val);
+    errEl.textContent = "";
     currentRole = pendingRole;
     currentSede = sedeSel; // null para gerente: ve el consolidado de ambas sedes
     pinModal.classList.remove("show");
@@ -1142,8 +1151,14 @@ function tryEnterRole() {
     initSedeSelects();
     applyRoleUI();
     startListeners();
-  } else {
-    document.getElementById("pinModalError").textContent = "Codigo invalido.";
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = err && err.code === "auth/too-many-requests"
+      ? "Demasiados intentos. Espera unos minutos."
+      : (err && err.code === "auth/network-request-failed" ? "Sin conexion. Revisa el internet." : "Codigo invalido.");
+  } finally {
+    entrando = false;
+    if (btn) btn.disabled = false;
   }
 }
 document.getElementById("pinModalBtn").addEventListener("click", tryEnterRole);
@@ -1153,17 +1168,26 @@ document.getElementById("pinModalInput").addEventListener("keydown", (e) => {
 
 document.getElementById("btnChangeRole").addEventListener("click", () => {
   currentRole = null;
+  currentSede = null;
+  stopListeners();
+  signOut(auth).catch(err => console.error(err));
   layout.style.display = "none";
   homeScreen.style.display = "flex";
 });
 
+// Al abrir la app siempre se pide el codigo (igual que antes): se cierra cualquier sesion previa.
+signOut(auth).catch(() => {});
+homeScreen.style.display = "flex";
+layout.style.display = "none";
 onAuthStateChanged(auth, (user) => {
-  if (user) {
-    homeScreen.style.display = "flex";
+  if (!user && currentRole) {
+    // La sesion se cerro o expiro: volver a la pantalla de inicio.
+    currentRole = null; currentSede = null;
+    stopListeners();
     layout.style.display = "none";
+    homeScreen.style.display = "flex";
   }
 });
-signInAnonymously(auth).catch(err => console.error("Error de acceso a Firebase:", err));
 
 function applyRoleUI() {
   const isGerente = currentRole === "gerente";
@@ -1880,33 +1904,39 @@ let alistamientosCache = [];
 let cierresCache = [];
 let comprobantesCache = [];
 
+let listenerUnsubs = [];
+function stopListeners() {
+  listenerUnsubs.forEach(u => { try { u(); } catch (e) {} });
+  listenerUnsubs = [];
+}
 function startListeners() {
+  stopListeners();
   const qAl = query(collection(db, COL_ALISTAMIENTO), orderBy("creadoEn", "desc"));
-  onSnapshot(qAl, (snap) => {
+  listenerUnsubs.push(onSnapshot(qAl, (snap) => {
     alistamientosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAlistamientoTable();
     updateResponsablesList();
     checkAlarmState();
-  });
+  }, (err) => console.error("Permiso o conexion:", err)));
 
   const qCi = query(collection(db, COL_CIERRE), orderBy("creadoEn", "desc"));
-  onSnapshot(qCi, (snap) => {
+  listenerUnsubs.push(onSnapshot(qCi, (snap) => {
     cierresCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderCierreTable();
     updateResponsablesList();
     if (document.getElementById("view-panel").style.display !== "none") renderPanelGerencial();
     else renderBolsasSeguridad();
     if (typeof renderMetaAlerta === "function") renderMetaAlerta();
-  });
+  }, (err) => console.error("Permiso o conexion:", err)));
 
   const qCo = query(collection(db, COL_COMPROBANTES), orderBy("creadoEn", "desc"));
-  onSnapshot(qCo, (snap) => {
+  listenerUnsubs.push(onSnapshot(qCo, (snap) => {
     comprobantesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderComprobantesTable();
     updateResponsablesList();
     if (typeof recomputeTransfContadas === "function") recomputeTransfContadas();
     if (document.getElementById("view-panel").style.display !== "none") renderPanelGerencial();
-  });
+  }, (err) => console.error("Permiso o conexion:", err)));
 }
 
 /* Roster por sede: cajeros/meseros y cantidad de mesas para Comprobantes.
