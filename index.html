@@ -918,6 +918,11 @@ const firebaseConfig = {
   measurementId: "G-YBX651VE36"
 };
 
+// Escapa texto escrito por usuarios antes de meterlo en el HTML (evita que alguien
+// esconda codigo en una nota, observacion o nombre).
+function escH(v) {
+  return String(v == null ? "" : v).replace(/[&<>"'`]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;" }[c]));
+}
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
@@ -1868,7 +1873,7 @@ document.getElementById("formCierre").addEventListener("submit", async (e) => {
       // Refleja el mismo cambio en la hoja de Drive (si el comprobante alcanzo a respaldarse ahi).
       comprobantesParaClaim.forEach(cid => {
         const r = comprobantesCache.find(c => c.id === cid);
-        if (r) marcarEstadoDrive(r, `Contado (${data.responsable || "Gerencia"} - ${data.fecha})`);
+        if (r) marcarEstadoDrive(r, `Contado (${escH(data.responsable || "Gerencia")} - ${escH(data.fecha)})`);
       });
       comprobantesParaClaim = [];
     }
@@ -1911,6 +1916,9 @@ function stopListeners() {
 }
 function startListeners() {
   stopListeners();
+  // Meseros solo trabajan con comprobantes: no se les cargan alistamientos ni cierres
+  // (la base de datos tampoco se los deja ver).
+  if (currentRole !== "mesero") {
   const qAl = query(collection(db, COL_ALISTAMIENTO), orderBy("creadoEn", "desc"));
   listenerUnsubs.push(onSnapshot(qAl, (snap) => {
     alistamientosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1928,6 +1936,7 @@ function startListeners() {
     else renderBolsasSeguridad();
     if (typeof renderMetaAlerta === "function") renderMetaAlerta();
   }, (err) => console.error("Permiso o conexion:", err)));
+  }
 
   const qCo = query(collection(db, COL_COMPROBANTES), orderBy("creadoEn", "desc"));
   listenerUnsubs.push(onSnapshot(qCo, (snap) => {
@@ -1958,18 +1967,18 @@ function initSedeSelects() {
 
   const nombreSel = document.getElementById("comp_nombre");
   nombreSel.innerHTML = '<option value="">Seleccionar...</option>' +
-    [...meserosSede(), ...cajerosSede()].map(n => `<option value="${n}">${n}</option>`).join("");
+    [...meserosSede(), ...cajerosSede()].map(n => `<option value="${escH(n)}">${escH(n)}</option>`).join("");
 }
 
 function updateResponsablesList() {
   const cajerosNames = new Set(cajerosSede());
   alistamientosCache.forEach(r => r.responsable && (!currentSede || sedeOf(r) === currentSede) && cajerosNames.add(r.responsable));
   cierresCache.forEach(r => r.responsable && (!currentSede || sedeOf(r) === currentSede) && cajerosNames.add(r.responsable));
-  document.getElementById("cajerosList").innerHTML = Array.from(cajerosNames).map(n => `<option value="${n}">`).join("");
+  document.getElementById("cajerosList").innerHTML = Array.from(cajerosNames).map(n => `<option value="${escH(n)}">`).join("");
 
   const personalNames = new Set([...cajerosSede(), ...meserosSede()]);
   comprobantesCache.forEach(r => r.mesero && (!currentSede || sedeOf(r) === currentSede) && personalNames.add(r.mesero));
-  document.getElementById("personalList").innerHTML = Array.from(personalNames).map(n => `<option value="${n}">`).join("");
+  document.getElementById("personalList").innerHTML = Array.from(personalNames).map(n => `<option value="${escH(n)}">`).join("");
 }
 updateResponsablesList();
 
@@ -2000,8 +2009,8 @@ function renderComprobantesTable() {
     return;
   }
   tbody.innerHTML = todays.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa || "-"}</td><td>${r.mesero || "-"}</td><td>${montoComprobante(r)}</td><td>${r.nota || "-"}</td>
-      <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.mesa || "-")}</td><td>${escH(r.mesero || "-")}</td><td>${montoComprobante(r)}</td><td>${escH(r.nota || "-")}</td>
+      <td>${r.foto ? `<img src="${escH(r.foto)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
       <td><button type="button" class="btn-ghost" data-del-comp-hoy="${r.id}" style="padding:5px 9px" title="Eliminar (con motivo)">${icon("trash",14)}</button></td>
     </tr>`).join("");
   tbody.querySelectorAll("button[data-del-comp-hoy]").forEach(btn => btn.addEventListener("click", () => {
@@ -2147,7 +2156,7 @@ function renderAlistamientoTable() {
       ? '<span class="pill ok">' + icon("checkc",12) + 'Listo</span>'
       : '<span class="pill warn">' + icon("alert",12) + 'Revisar</span>';
     return `<tr class="clickable" data-al="${i}">
-      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(alistamientoDatafonosList(r))}</td>
+      <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.responsable || "-")}</td><td>${datafonosPillList(alistamientoDatafonosList(r))}</td>
       <td>${fmtMoney(r.baseValor)}</td><td>${okItems}/${totalItems}</td><td>${pill}</td>
       <td>${icon("eye",16)}</td>
     </tr>`;
@@ -2165,7 +2174,7 @@ function renderCierreTable() {
   }
   const diffSpan = v => `<span class="${(v||0) === 0 ? 'diff-ok' : 'diff-bad'}">${fmtMoney(v)}</span>`;
   tbody.innerHTML = rows.map(({r, i}) => `<tr class="clickable" data-ci="${i}">
-      <td>${r.fecha || "-"}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td><td>${verifResumenPill(r)}</td>
+      <td>${escH(r.fecha || "-")}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.responsable || "-")}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td><td>${verifResumenPill(r)}</td>
       <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
       <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
       <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
@@ -2370,10 +2379,10 @@ function openCierreDetail(r) {
       ${detailRow("Bolsa de seguridad", fmtMoney(r.bolsaSeguridad))}
     </div>
     ${denomRows ? `<div class="table-wrap" style="max-height:200px"><table><thead><tr><th>Denominacion</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>${denomRows}</tbody></table></div>` : ""}
-    ${(r.gastosDetalle && r.gastosDetalle.length) ? `<div class="table-wrap" style="max-height:200px;margin-top:10px"><table><thead><tr><th>Proveedor</th><th>Categoria</th><th>Comentario</th><th>Importe</th></tr></thead><tbody>${r.gastosDetalle.map(g => `<tr><td>${g.proveedor||"-"}</td><td>${g.categoria||"-"}</td><td>${g.comentario||"-"}</td><td>${fmtMoney(g.importe)}</td></tr>`).join("")}</tbody></table></div>` : ""}
-    ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
-    ${r.editadoEn ? `<p class="muted" style="margin-top:6px">${icon("edit",12)} Editado por ${r.editadoPor || "Gerencia"} · ${fmtDate(r.editadoEn)}</p>` : ""}
-    ${r.archivado ? `<p class="muted" style="margin-top:6px">${icon("archive",12)} Archivado por ${r.archivadoPor || "Gerencia"} · ${fmtDate(r.archivadoEn)}</p>` : ""}
+    ${(r.gastosDetalle && r.gastosDetalle.length) ? `<div class="table-wrap" style="max-height:200px;margin-top:10px"><table><thead><tr><th>Proveedor</th><th>Categoria</th><th>Comentario</th><th>Importe</th></tr></thead><tbody>${r.gastosDetalle.map(g => `<tr><td>${escH(g.proveedor||"-")}</td><td>${escH(g.categoria||"-")}</td><td>${escH(g.comentario||"-")}</td><td>${fmtMoney(g.importe)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    ${r.observaciones ? `<p class="muted" style="margin-top:10px"><b>Observaciones:</b> ${escH(r.observaciones)}</p>` : ""}
+    ${r.editadoEn ? `<p class="muted" style="margin-top:6px">${icon("edit",12)} Editado por ${escH(r.editadoPor || "Gerencia")} · ${fmtDate(r.editadoEn)}</p>` : ""}
+    ${r.archivado ? `<p class="muted" style="margin-top:6px">${icon("archive",12)} Archivado por ${escH(r.archivadoPor || "Gerencia")} · ${fmtDate(r.archivadoEn)}</p>` : ""}
     ${thumbRow("Comprobante de datafono", r.comprobanteDatafono)}
   `;
   detailModal.classList.add("show");
@@ -2388,14 +2397,14 @@ function openAlistamientoDetail(r) {
   document.getElementById("detailSub").textContent = fmtDate(r.creadoEn) + " · " + SEDE_LABELS[sedeOf(r)] + " · " + (r.responsable || "-");
   const itemsHtml = Object.entries(r.items || {}).map(([id, val]) => {
     const p = val === "Cumple" ? '<span class="pill ok">Si</span>' : val === "No cumple" ? '<span class="pill warn">No</span>' : '<span class="pill off">N/A</span>';
-    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span>${CHECK_LABELS[id]||id}</span>${p}</div>`;
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span>${escH(CHECK_LABELS[id]||id)}</span>${p}</div>`;
   }).join("");
   document.getElementById("detailBody").innerHTML = `
     <div class="detail-grid">
       ${detailRow("Datafonos en uso", datafonosPillList(alistamientoDatafonosList(r)))}
       ${detailRow("Base / menudo", fmtMoney(r.baseValor))}
     </div>
-    ${r.observaciones ? `<p class="muted"><b>Observaciones:</b> ${r.observaciones}</p>` : ""}
+    ${r.observaciones ? `<p class="muted"><b>Observaciones:</b> ${escH(r.observaciones)}</p>` : ""}
     <div style="margin-top:8px">${itemsHtml}</div>
   `;
   detailModal.classList.add("show");
@@ -2410,6 +2419,7 @@ function hasAlistamientoHoy() {
   return alistamientosCache.some(r => (r.fecha || dateKeyFromTs(r.creadoEn)) === todayStr());
 }
 function checkAlarmState() {
+  if (currentRole === "mesero") { document.getElementById("alarmDot").style.display = "none"; return; }
   const now = new Date();
   const afterAlarmTime = (now.getHours() > ALARM_HOUR) || (now.getHours() === ALARM_HOUR && now.getMinutes() >= ALARM_MINUTE);
   const done = hasAlistamientoHoy();
@@ -2545,7 +2555,7 @@ function renderBolsasSeguridad() {
     const recInfo = r.bolsaRecibida ? ((r.bolsaRecibidaPor || "Gerencia") + " &middot; " + fmtDate(r.bolsaRecibidaEn)) : "-";
     const accion = r.bolsaRecibida ? "-" : `<button class="btn-primary" style="padding:4px 10px;font-size:12px" data-recibir="${idx}">${icon("checkc",13)}Recibido</button>`;
     return `<tr>
-      <td>${r.fecha || fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable || "-"}</td><td>${fmtMoney(r.bolsaSeguridad)}</td>
+      <td>${escH(r.fecha || fmtDate(r.creadoEn))}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.responsable || "-")}</td><td>${fmtMoney(r.bolsaSeguridad)}</td>
       <td>${estado}</td><td>${recInfo}</td><td>${accion}</td>
     </tr>`;
   }).join("");
@@ -2704,7 +2714,7 @@ function renderPanelGerencial() {
   });
   const ranking = Object.entries(byResp).sort((a,b)=>b[1].total-a[1].total);
   document.getElementById("pg_rankTbody").innerHTML = ranking.length ? ranking.map(([name,s]) =>
-    `<tr><td>${name}</td><td>${s.cierres}</td><td>${s.conDescuadre}</td><td>${fmtMoney(s.total)}</td></tr>`).join("")
+    `<tr><td>${escH(name)}</td><td>${s.cierres}</td><td>${s.conDescuadre}</td><td>${fmtMoney(s.total)}</td></tr>`).join("")
     : '<tr><td colspan="4"><div class="empty-state">Sin datos en el rango.</div></td></tr>';
 
   // Cumplimiento alistamiento a tiempo
@@ -2731,7 +2741,7 @@ function renderPanelGerencial() {
   const tbody = document.getElementById("pg_tbody");
   const diffSpan = v => `<span class="${(v||0)===0?'diff-ok':'diff-bad'}">${fmtMoney(v)}</span>`;
   tbody.innerHTML = problematicos.length ? problematicos.map((r,i) => `<tr class="clickable" data-pg="${cierresCache.indexOf(r)}">
-      <td>${r.fecha||"-"}</td><td>${r.responsable||"-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
+      <td>${escH(r.fecha||"-")}</td><td>${escH(r.responsable||"-")}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
       <td>${diffSpan(r.diferenciaEfectivo)}</td><td>${diffSpan(r.diferenciaTransferencias)}</td><td>${diffSpan(r.diferenciaTarjetas)}</td>
       <td>${verifResumenPill(r)}</td><td>${diferenciaFacturacionResumen(r)!=null?diffSpan(diferenciaFacturacionResumen(r)):'-'}</td><td>${icon("eye",16)}</td>
     </tr>`).join("") : '<tr><td colspan="9"><div class="empty-state">Sin diferencias ni novedades de facturacion en el rango. Todo cuadrado.</div></td></tr>';
@@ -2744,7 +2754,7 @@ function renderPanelGerencial() {
   const cierresTbody = document.getElementById("pg_cierresTbody");
   const rowsOrdenadas = [...visibleCierres(rows)].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   cierresTbody.innerHTML = rowsOrdenadas.length ? rowsOrdenadas.map(r => `<tr class="clickable" data-pgc="${cierresCache.indexOf(r)}">
-      <td>${r.fecha||"-"}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.responsable||"-"}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
+      <td>${escH(r.fecha||"-")}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.responsable||"-")}</td><td>${datafonosPillList(cierreDatafonosActivos(r))}</td>
       <td>${fmtMoney(r.efectivoContado)} (${diffSpan(r.diferenciaEfectivo)})</td>
       <td>${fmtMoney(r.transferenciasContadas)} (${diffSpan(r.diferenciaTransferencias)})</td>
       <td>${fmtMoney(r.tarjetasContadas)} (${diffSpan(r.diferenciaTarjetas)})</td>
@@ -2811,10 +2821,10 @@ function renderPanelGerencial() {
   const compOrdenados = [...visibleComprobantes(compRows)].sort((a,b) => (b.fecha||"").localeCompare(a.fecha||""));
   const totalCompMonto = compRows.reduce((a,r)=>a+montoNumComprobante(r),0);
   compTbody.innerHTML = compOrdenados.length ? compOrdenados.map(r => `<tr>
-      <td>${fmtDate(r.creadoEn)}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td>
+      <td>${fmtDate(r.creadoEn)}${r.archivado ? ' <span class="pill off">Archivado</span>' : ""}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.mesa||"-")}</td><td>${escH(r.mesero||"-")}</td><td>${montoComprobante(r)}</td><td>${fuenteMontoPill(r)}</td>
       <td>${r.usadoEnCierre ? '<span class="pill ok">Contado</span>' : '<span class="pill off">Sin usar</span>'}</td>
-      <td>${r.nota||"-"}</td>
-      <td>${r.foto ? `<img src="${r.foto}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
+      <td>${escH(r.nota||"-")}</td>
+      <td>${r.foto ? `<img src="${escH(r.foto)}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openImageLightbox(this.src)">` : "-"}</td>
       <td style="white-space:nowrap">
         <button type="button" class="btn-ghost" data-arch-comp="${r.id}" data-arch-val="${r.archivado ? "0" : "1"}" style="padding:5px 8px" title="${r.archivado ? "Desarchivar" : "Archivar"}">${icon(r.archivado ? "unarchive" : "archive",14)}</button>
         <button type="button" class="btn-ghost" data-del-comp="${r.id}" style="padding:5px 9px" title="Eliminar">${icon("trash",14)}</button>
@@ -2852,8 +2862,8 @@ function renderPanelGerencial() {
   const elimTbody = document.getElementById("pg_compEliminadosTbody");
   if (elimTbody) {
     elimTbody.innerHTML = eliminados.length ? eliminados.map(r => `<tr>
-        <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${r.mesa||"-"}</td><td>${r.mesero||"-"}</td><td>${montoComprobante(r)}</td>
-        <td>${r.motivoEliminacion||"-"}</td><td>${r.eliminadoPor||"-"}</td><td>${fmtDate(r.eliminadoEn)}</td>
+        <td>${fmtDate(r.creadoEn)}</td><td>${SEDE_LABELS[sedeOf(r)]}</td><td>${escH(r.mesa||"-")}</td><td>${escH(r.mesero||"-")}</td><td>${montoComprobante(r)}</td>
+        <td>${escH(r.motivoEliminacion||"-")}</td><td>${escH(r.eliminadoPor||"-")}</td><td>${fmtDate(r.eliminadoEn)}</td>
       </tr>`).join("") : '<tr><td colspan="8"><div class="empty-state">No hay comprobantes eliminados en el rango.</div></td></tr>';
   }
 }
